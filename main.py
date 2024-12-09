@@ -1,39 +1,31 @@
-from analyzer import parallel_ollama_et_analyzer, auxiliary_functions as aux_functions
-from pathlib import Path
+from analyzer import *
 
-args = aux_functions.getArgs()
-
-if __name__ == "__main__" and aux_functions.checkOllamaConnected():
-
+if __name__ == "__main__" and checkOllamaConnected():
+    args = getArgs()
     EVOLUTION_TEXTS_FILENAME = Path(__file__).parent / "historiales_resueltos.csv"
-    MODELS_LIST_FILENAME = Path(__file__).parent / "models_list" / "models_list.json"
+    MODELS_LIST_FILENAME = Path(__file__).parent / "models.json"
     results_dir = Path(__file__).parent / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    medicalData = aux_functions.convertToDict(EVOLUTION_TEXTS_FILENAME)
+    medicalData = getEvolutionTexts(EVOLUTION_TEXTS_FILENAME)
 
     match args.mode:
         case 1:
-            model = aux_functions.chooseModel(MODELS_LIST_FILENAME)
-            modelsResults = []
-            if model:
-                results = parallel_ollama_et_analyzer.evolutionTextAnalysis(
-                    model, medicalData
-                )
-                aux_functions.updateResults(results_dir, results, modelsResults)
-                aux_functions.printProcessedResults(results)
-            print()
-        case 2:
-            models = aux_functions.getAllModels(MODELS_LIST_FILENAME)
+            models = getModels(MODELS_LIST_FILENAME)
             modelsResults = []
             for mIdx, model in enumerate(models):
-                if aux_functions.checkModel(model):
-                    partialResults = parallel_ollama_et_analyzer.evolutionTextAnalysis(
-                        model, medicalData, mIdx, len(models)
+                if checkModel(model):
+                    partialResults = evolutionTextAnalysis(
+                        model, medicalData, args.batches, mIdx, len(models)
                     )
-                    aux_functions.updateResults(
-                        results_dir, partialResults, modelsResults
-                    )
+                    updateResults(results_dir, partialResults, modelsResults)
+            print()
+        case 2:
+            model = chooseModel(MODELS_LIST_FILENAME)
+            if model:
+                results = evolutionTextAnalysis(model, medicalData, args.batches)
+                updateResults(results_dir, results, [])
+                printProcessedResults(results)
             print()
         case _:
             print("Modo no disponible")

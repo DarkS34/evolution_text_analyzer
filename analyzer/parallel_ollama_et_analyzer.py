@@ -7,12 +7,10 @@ from analyzer.auxiliary_functions import printExecutionProgression
 from analyzer.validator import validateResult
 import time
 
-PARALLEL_BATCH_SIZE = 5
-
-
 def evolutionTextAnalysis(
     modelInfo: dict,
     medicalData: list,
+    numBatches:int,
     processedModels: int = 1,
     totalModels: int = 1,
 ):
@@ -94,7 +92,7 @@ def evolutionTextAnalysis(
         for start in range(
             0,
             len(evolutionTexts),
-            min(PARALLEL_BATCH_SIZE, len(evolutionTexts)),
+            min(numBatches, len(evolutionTexts)),
         ):
             printExecutionProgression(
                 modelInfo["modelName"],
@@ -103,7 +101,7 @@ def evolutionTextAnalysis(
                 processedModels,
                 totalModels,
             )
-            batch = evolutionTexts[start : start + PARALLEL_BATCH_SIZE]
+            batch = evolutionTexts[start : start + numBatches]
 
             parallelRunner = RunnableParallel(
                 {
@@ -149,7 +147,7 @@ def evolutionTextAnalysis(
                 "incorrectOutputs": 100.00 - accuracy - errorOutputs,
                 "errors": errorOutputs,
                 "processingTime": round(endTime - startTime, 4),
-                "numBatches": PARALLEL_BATCH_SIZE,
+                "numBatches": numBatches,
             },
             "evolutionTextsResults": processedEvolutionTexts,
         }
