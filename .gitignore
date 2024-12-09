@@ -1,4 +1,3 @@
 __pycache__
-evolution_texts/*
-!evolution_texts/.gitkeep
+historiales_resueltos.*
 results

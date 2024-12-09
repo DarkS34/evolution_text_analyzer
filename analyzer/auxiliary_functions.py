@@ -8,7 +8,7 @@ def getArgs():
     parser.add_argument(
         "-mode",
         type=int,
-        default=1,
+        default=2,
         required=False,
         choices=[1, 2],
         help="Modo de operación (1, 2, etc.)",
@@ -70,7 +70,7 @@ def getAllModels(modelsListpath: Path):
             "installed": installed,
         }
 
-    def addInstalledOllamaModels(ml:list):
+    def addInstalledOllamaModels(ml: list):
         installedOllamaModels = []
         for model in ollama.list()["models"]:
             installedOllamaModels.append(
@@ -236,24 +236,15 @@ def chooseModel(modelsListpath: Path):
         return None
 
 
-def checkResult(enfermedad1, enfermedad2):
-    diagE1 = enfermedad1["principal_diagnostic"].lower()
-    diagE2 = enfermedad2["principal_diagnostic"].lower()
-
-    return (diagE1 == diagE2) or diagE1.find(diagE2) != -1 or diagE2.find(diagE1) != -1
-
-
 def printProcessedResults(results: dict):
     if not silentOption:
         for id, processedETResult in results["evolutionTextsResults"].items():
             print(
                 f"\n{id} - {processedETResult['valid']} {'-'*20}\nResultado modelo: {processedETResult['processedOutput'].get('principal_diagnostic')} ({processedETResult['processedOutput'].get('icd_code')})\nResultado correcto: {processedETResult['correctOutput']['principal_diagnostic']}"
             )
-        print(f"\n\tAccuracy: {results['performance']['accuracy']:.2f} %")
-        print(
-            f"\tIncorrect outputs: {results['performance']['incorrectOutputs']:.2f} %"
-        )
-        print(f"\tErrors: {results['performance']['errors']:.2f} %")
+        print(f"\n\tAccuracy: {results['performance']['accuracy']:.2f}%")
+        print(f"\tIncorrect outputs: {results['performance']['incorrectOutputs']:.2f}%")
+        print(f"\tErrors: {results['performance']['errors']:.2f}%")
         print(f"\tProcessing time: {results['performance']['processingTime']} s.")
 
 
@@ -291,7 +282,7 @@ def printExecutionProgression(
     totalTexts: int,
     processedModels: int,
     totalModels: int,
-    barLength: int = 20,
+    barLength: int = 40,
 ):
     if not silentOption:
         if totalModels == 1:

@@ -5,15 +5,13 @@ args = aux_functions.getArgs()
 
 if __name__ == "__main__" and aux_functions.checkOllamaConnected():
 
-    EVOLUTION_TEXTS_FILENAME = (
-        Path(__file__).parent / "evolution_texts" / "historiales_resueltos.csv"
-    )
+    EVOLUTION_TEXTS_FILENAME = Path(__file__).parent / "historiales_resueltos.csv"
     MODELS_LIST_FILENAME = Path(__file__).parent / "models_list" / "models_list.json"
     results_dir = Path(__file__).parent / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
 
     medicalData = aux_functions.convertToDict(EVOLUTION_TEXTS_FILENAME)
-    
+
     match args.mode:
         case 1:
             model = aux_functions.chooseModel(MODELS_LIST_FILENAME)
@@ -32,6 +30,8 @@ if __name__ == "__main__" and aux_functions.checkOllamaConnected():
                     partialResults = parallel_ollama_et_analyzer.evolutionTextAnalysis(
                         model, medicalData, mIdx, len(models)
                     )
-                    aux_functions.updateResults(results_dir, partialResults, modelsResults)
+                    aux_functions.updateResults(
+                        results_dir, partialResults, modelsResults
+                    )
         case _:
             print("Modo no disponible")

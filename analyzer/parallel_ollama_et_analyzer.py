@@ -3,14 +3,19 @@ from langchain.prompts import ChatPromptTemplate
 from langchain_ollama.llms import OllamaLLM
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from pydantic import BaseModel, Field
-from analyzer import auxiliary_functions as aux_functions
+from analyzer.auxiliary_functions import printExecutionProgression
+from analyzer.validator import validateResult
 import time
 
 PARALLEL_BATCH_SIZE = 2
 
 
 def evolutionTextAnalysis(
-    modelInfo: dict, medicalData: list, processedModels: int = 1, totalModels: int = 1, seed = 2
+    modelInfo: dict,
+    medicalData: list,
+    processedModels: int = 1,
+    totalModels: int = 1,
+    seed=2,
 ):
     # Model
     model = OllamaLLM(
@@ -59,7 +64,10 @@ def evolutionTextAnalysis(
             processedChain = chain.invoke({"evolution_text": record["evolution_text"]})
             # Validar resultados
             return {
-                "valid": aux_functions.checkResult(record, processedChain),
+                "valid": validateResult(
+                    processedChain["principal_diagnostic"],
+                    record["principal_diagnostic"],
+                ),
                 "processedOutput": processedChain,
                 "correctOutput": {
                     "principal_diagnostic": record["principal_diagnostic"],
@@ -88,7 +96,7 @@ def evolutionTextAnalysis(
             len(evolutionTexts),
             min(PARALLEL_BATCH_SIZE, len(evolutionTexts)),
         ):
-            aux_functions.printExecutionProgression(
+            printExecutionProgression(
                 len(processedEvolutionTexts),
                 len(evolutionTexts),
                 processedModels,
@@ -107,7 +115,7 @@ def evolutionTextAnalysis(
 
             batchResults = parallelRunner.invoke(batch)
             processedEvolutionTexts.update(batchResults)
-            aux_functions.printExecutionProgression(
+            printExecutionProgression(
                 len(processedEvolutionTexts),
                 len(evolutionTexts),
                 processedModels,
@@ -142,7 +150,6 @@ def evolutionTextAnalysis(
                 "numBatches": PARALLEL_BATCH_SIZE,
             },
             "evolutionTextsResults": processedEvolutionTexts,
-            
         }
 
     return executeInBatches(medicalData)
