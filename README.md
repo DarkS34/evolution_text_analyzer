@@ -30,6 +30,6 @@ Tags are used to customize the behavior of the script. Below are the main tags y
 ## Usage
 To run the script with your desired tags, execute the following command:
 ```bash
-python script.py -mode 2 -silent
+python main.py -mode 2 -silent
 ```
 This command will run the script in automatic mode (`-mode 2`), suppressing terminal output (`-silent`).
