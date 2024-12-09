@@ -22,6 +22,7 @@ if __name__ == "__main__" and aux_functions.checkOllamaConnected():
                 )
                 aux_functions.updateResults(results_dir, results, modelsResults)
                 aux_functions.printProcessedResults(results)
+            print()
         case 2:
             models = aux_functions.getAllModels(MODELS_LIST_FILENAME)
             modelsResults = []
@@ -33,5 +34,6 @@ if __name__ == "__main__" and aux_functions.checkOllamaConnected():
                     aux_functions.updateResults(
                         results_dir, partialResults, modelsResults
                     )
+            print()
         case _:
             print("Modo no disponible")

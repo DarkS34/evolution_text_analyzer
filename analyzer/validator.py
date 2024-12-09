@@ -85,6 +85,6 @@ extendedDiagMap = {
 
 def validateResult(processedDiag:str, correctDiag:str):
     diagE1 = processedDiag.lower()
-    diagE2 = extendedDiagMap.get(correctDiag, correctDiag.lower())
+    diagE2 = extendedDiagMap.get(correctDiag, correctDiag).lower()
 
     return (diagE1 == diagE2) or diagE1.find(diagE2) != -1 or diagE2.find(diagE1) != -1

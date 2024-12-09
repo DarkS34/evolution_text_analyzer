@@ -7,7 +7,7 @@ from analyzer.auxiliary_functions import printExecutionProgression
 from analyzer.validator import validateResult
 import time
 
-PARALLEL_BATCH_SIZE = 2
+PARALLEL_BATCH_SIZE = 5
 
 
 def evolutionTextAnalysis(
@@ -15,7 +15,6 @@ def evolutionTextAnalysis(
     medicalData: list,
     processedModels: int = 1,
     totalModels: int = 1,
-    seed=2,
 ):
     # Model
     model = OllamaLLM(
@@ -24,6 +23,7 @@ def evolutionTextAnalysis(
         top_p=0.9,
         verbose=False,
         format="json",
+        seed=2,
     )
 
     # Parser - Json Object
@@ -97,6 +97,7 @@ def evolutionTextAnalysis(
             min(PARALLEL_BATCH_SIZE, len(evolutionTexts)),
         ):
             printExecutionProgression(
+                modelInfo["modelName"],
                 len(processedEvolutionTexts),
                 len(evolutionTexts),
                 processedModels,
@@ -116,6 +117,7 @@ def evolutionTextAnalysis(
             batchResults = parallelRunner.invoke(batch)
             processedEvolutionTexts.update(batchResults)
             printExecutionProgression(
+                modelInfo["modelName"],
                 len(processedEvolutionTexts),
                 len(evolutionTexts),
                 processedModels,

@@ -147,42 +147,37 @@ def convertToDict(path: Path):
     return evolutionTextsList
 
 
-def downloadModel(modelName):
+def downloadModel(model):
     try:
         if not silentOption:
-            print(f"Downloading model - '{modelName}' ...", end="\r")
-        ollama.pull(modelName)
+            print(f"\rDownloading model - '{model['modelName']}' ...", end="")
+        ollama.pull(model["modelName"])
     except Exception as e:
         print(f"Error: {e}")
+        return False
     finally:
+        model.pop("installed")
         return any(
-            modelName == ollamaModel["model"] for ollamaModel in ollama.list()["models"]
+            model["modelName"] == ollamaModel["model"]
+            for ollamaModel in ollama.list()["models"]
         )
 
 
 def checkModel(model):
     if not model["installed"]:
-        return downloadModel(model["modelName"])
-    else:
-        return True
+        return downloadModel(model)
+    model.pop("installed")
+    return True
 
 
 def chooseModel(modelsListpath: Path):
     modelsList = getAllModels(modelsListpath)
 
-    # model_width = max(len(modelInfo["modelName"]) for modelInfo in modelsList) + 2
-    # size_width = max(len(modelInfo["size"]) for modelInfo in modelsList) + 3
-    # paramStr = "Parameters Size"
-    # quantStr = "Quantization Level"
-    # instStr = "Installed"
-
-    for i,model in enumerate(modelsList, start=1):
+    for i, model in enumerate(modelsList, start=1):
         print(f"{i}.\t {model['modelName']}")
-    j  = int(input(f"Select model (1-{len(modelsList)}): "))
-    print()
-    choosenModel = modelsList[j-1]
+    j = int(input(f"Select model (1-{len(modelsList)}): "))
+    choosenModel = modelsList[j - 1]
     if checkModel(choosenModel):
-        choosenModel.pop("installed")
         return choosenModel
     else:
         return None
@@ -230,38 +225,51 @@ def writeProcessedResult(resultsPath: str, results: dict):
 
 
 def printExecutionProgression(
+    modelName: str,
     processedTexts: int,
     totalTexts: int,
     processedModels: int,
     totalModels: int,
-    barLength: int = 40,
+    # barLength: int = 20,
 ):
     if not silentOption:
+        print(f"\r{' '*os.get_terminal_size().columns}", end="", flush=True)
         if totalModels == 1:
-            processedPart = "*" * (barLength * processedTexts // totalTexts)
-            emptyPart = " " * (barLength - (barLength * processedTexts // totalTexts))
-            processedPercentage = f"{processedTexts / totalTexts * 100:.2f}%"
             print(
-                f"Historiales procesados |{processedPart}{emptyPart}| {processedPercentage}",
-                end="\r",
+                f"\rModel: {modelName} || ETs {processedTexts}/{totalTexts}",
+                end="",
                 flush=True,
             )
+            # processedPart = "*" * (barLength * processedTexts // totalTexts)
+            # emptyPart = " " * (barLength - (barLength * processedTexts // totalTexts))
+            # processedPercentage = f"{processedTexts / totalTexts * 100:.2f}%"
+            # print(
+            #     f"Historiales procesados |{processedPart}{emptyPart}| {processedPercentage}",
+            #     end="\r",
+            #     flush=True,
+            # )
         else:
-            modelsBarLenght = barLength + 20
-            processedModelsPart = "*" * (
-                modelsBarLenght * processedModels // totalModels
-            )
-            modelsEmptyPart = " " * (
-                modelsBarLenght - (modelsBarLenght * processedModels // totalModels)
-            )
-            processedModelsPercentage = f"{processedModels / totalModels * 100:.2f}%"
-            processedTextsPart = "*" * (barLength * processedTexts // totalTexts)
-            textsEmptyPart = " " * (
-                barLength - (barLength * processedTexts // totalTexts)
-            )
-            processedTextsPercentage = f"{processedTexts / totalTexts * 100:.2f}%"
             print(
-                f"Modelos procesados |{processedModelsPart}{modelsEmptyPart}| {processedModelsPercentage} -- Historiales procesados |{processedTextsPart}{textsEmptyPart}| {processedTextsPercentage}{' '*5}",
-                end="\r",
+                f"\rModels processed {processedModels}/{totalModels} || Model: {modelName} || ETs processed {processedTexts}/{totalTexts}",
+                end="",
                 flush=True,
             )
+            # modelsBarLenght = barLength + 20
+            # processedModelsPart = "*" * (
+            #     modelsBarLenght * processedModels // totalModels
+            # )
+            # modelsEmptyPart = " " * (
+            #     modelsBarLenght - (modelsBarLenght * processedModels // totalModels)
+            # )
+            # processedModelsPercentage = f"{processedModels / totalModels * 100:.2f}%"
+            # processedTextsPart = "*" * (barLength * processedTexts // totalTexts)
+            # textsEmptyPart = " " * (
+            #     barLength - (barLength * processedTexts // totalTexts)
+            # )
+            # processedTextsPercentage = f"{processedTexts / totalTexts * 100:.2f}%"
+            # print(
+            #     f"Modelos procesados |{processedModelsPart}{modelsEmptyPart}| {processedModelsPercentage} -- Historiales procesados |{processedTextsPart}{textsEmptyPart}| {processedTextsPercentage}{' '*5}",
+            #     end="\r",
+            #     flush=True,
+            # )
+
