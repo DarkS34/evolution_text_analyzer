@@ -1,6 +1,6 @@
 from pydantic import ByteSize
 from pathlib import Path
-import csv, json, ollama, curses, requests, os, argparse, copy
+import csv, json, ollama, requests, os, argparse, copy
 
 
 def getArgs():
@@ -170,65 +170,17 @@ def checkModel(model):
 def chooseModel(modelsListpath: Path):
     modelsList = getAllModels(modelsListpath)
 
-    model_width = max(len(modelInfo["modelName"]) for modelInfo in modelsList) + 2
-    size_width = max(len(modelInfo["size"]) for modelInfo in modelsList) + 3
-    paramStr = "Parameters Size"
-    quantStr = "Quantization Level"
-    instStr = "Installed"
+    # model_width = max(len(modelInfo["modelName"]) for modelInfo in modelsList) + 2
+    # size_width = max(len(modelInfo["size"]) for modelInfo in modelsList) + 3
+    # paramStr = "Parameters Size"
+    # quantStr = "Quantization Level"
+    # instStr = "Installed"
 
-    def modelsMenu(stdscr):
-        current_option = 0
-
-        curses.curs_set(0)
-        curses.start_color()
-        curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
-
-        while True:
-            stdscr.clear()
-            stdscr.addstr(
-                0,
-                0,
-                f"\t{'Model'.ljust(model_width)}|{'Size'.center(size_width)}|{paramStr.center(len(paramStr)+2)}|{quantStr.center(len(quantStr)+2)}|{instStr.center(len(instStr)+2)}",
-                curses.A_BOLD,
-            ),
-
-            stdscr.addstr(
-                1,
-                0,
-                f"\t{'‾'*(model_width+size_width+len(paramStr)+2+len(quantStr)+2+len(instStr)+2+4)}",
-                curses.A_BOLD,
-            )
-
-            for idx, modelInfo in enumerate(modelsList):
-                model = modelInfo["modelName"].ljust(model_width)
-                size = modelInfo["size"].center(size_width)
-                param = modelInfo["parametersSize"].center(len(paramStr) + 2)
-                quant = modelInfo["quantizationLevel"].center(len(quantStr) + 2)
-                installed = ("Yes" if modelInfo["installed"] else "No").center(
-                    len(instStr) + 2
-                )
-                line = f"{idx+1}.\t{model}|{size}|{param}|{quant}|{installed}"
-                if idx == current_option:
-                    stdscr.addstr(
-                        idx + 2,
-                        0,
-                        f">> {line}",
-                        curses.A_BOLD | curses.color_pair(1),
-                    )
-                else:
-                    stdscr.addstr(idx + 2, 0, f"   {line}")
-
-            stdscr.refresh()
-            key = stdscr.getch()
-
-            if key == curses.KEY_UP and current_option > 0:
-                current_option -= 1
-            elif key == curses.KEY_DOWN and current_option < len(modelsList) - 1:
-                current_option += 1
-            elif key == ord("\n"):
-                return modelsList[current_option]
-
-    choosenModel = curses.wrapper(modelsMenu)
+    for i,model in enumerate(modelsList, start=1):
+        print(f"{i}.\t {model['modelName']}")
+    j  = int(input(f"Select model (1-{len(modelsList)}): "))
+    print()
+    choosenModel = modelsList[j-1]
     if checkModel(choosenModel):
         choosenModel.pop("installed")
         return choosenModel
