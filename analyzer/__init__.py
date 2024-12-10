@@ -21,5 +21,5 @@ __all__ = [
     "updateResults",
     "chooseModel",
     "printProcessedResults",
-    "Path"
+    "Path",
 ]

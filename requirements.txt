@@ -1,4 +1,0 @@
-ollama
-windows-curses
-langchain
-langchain-ollama

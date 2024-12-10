@@ -7,10 +7,11 @@ from analyzer.auxiliary_functions import printExecutionProgression
 from analyzer.validator import validateResult
 import time
 
+
 def evolutionTextAnalysis(
     modelInfo: dict,
     medicalData: list,
-    numBatches:int,
+    numBatches: int,
     processedModels: int = 1,
     totalModels: int = 1,
 ):
@@ -133,7 +134,7 @@ def evolutionTextAnalysis(
             sum(
                 1
                 for result in processedEvolutionTexts.values()
-                if result["valid"] == False and result["processedOutput"].get("error")
+                if not result["valid"] and result["processedOutput"].get("error")
             )
             / len(processedEvolutionTexts)
             * 100,

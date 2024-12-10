@@ -81,7 +81,7 @@ def getModels(modelsListPath: Path):
                         modelsList.append(
                             modelTemplate(
                                 rawModel["modelName"],
-                                installedModelInfo != None,
+                                installedModelInfo is None,
                                 rawModel.get(
                                     "size",
                                     (

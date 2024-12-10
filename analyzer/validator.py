@@ -83,7 +83,8 @@ extendedDiagMap = {
     "Beçhet": "Enfermedad de Behçet",
 }
 
-def validateResult(processedDiag:str, correctDiag:str):
+
+def validateResult(processedDiag: str, correctDiag: str):
     diagE1 = processedDiag.lower()
     diagE2 = extendedDiagMap.get(correctDiag, correctDiag).lower()
 
