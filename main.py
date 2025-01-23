@@ -1,4 +1,15 @@
-from analyzer import *
+from pathlib import Path
+from analyzer.auxiliary_functions import (
+    checkOllamaConnected,
+    getArgs,
+    getEvolutionTexts,
+    getModels,
+    checkModel,
+    chooseModel,
+    updateResults,
+    printProcessedResults,
+)
+from analyzer.parallel_ollama_et_analyzer import evolutionTextAnalysis
 
 if __name__ == "__main__" and checkOllamaConnected():
     args = getArgs()
@@ -19,13 +30,11 @@ if __name__ == "__main__" and checkOllamaConnected():
                         model, medicalData, args.batches, mIdx, len(models)
                     )
                     updateResults(results_dir, partialResults, modelsResults)
-            print()
         case 2:
             model = chooseModel(MODELS_LIST_FILENAME)
             if model:
                 results = evolutionTextAnalysis(model, medicalData, args.batches)
                 updateResults(results_dir, results, [])
                 printProcessedResults(results)
-            print()
         case _:
             print("Modo no disponible")

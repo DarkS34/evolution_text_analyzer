@@ -24,6 +24,7 @@ def evolutionTextAnalysis(
         format="json",
         seed=2,
     )
+    numBatches = min(numBatches, len(medicalData))
 
     # Parser - Json Object
     class DeseaseAnalysis(BaseModel):
@@ -43,11 +44,27 @@ def evolutionTextAnalysis(
         messages=[
             (
                 "system",
-                "Eres un sistema médico especializado en el análisis de historiales médicos sobre enfermedades reumatológicas. Tu tarea es identificar y extraer el nombre y el código CIE correspondiente a la enfermedad principal mencionada en el siguiente historial.\n\n{instructions_format}",
+                """Eres un asistente médico especializado en reumatología con experiencia en codificación CIE. Tu función es:
+                1. Analizar cuidadosamente el historial médico proporcionado
+                2. Identificar la enfermedad reumatológica principal del paciente
+                3. Proporcionar el código CIE correspondiente
+                
+                Instrucciones específicas:
+                - Céntrate solo en la enfermedad reumatológica principal
+                - Si hay múltiples condiciones, selecciona la más relevante o grave
+                - Ignora condiciones secundarias o no reumatológicas
+                - Asegúrate de que el código CIE sea específico para la condición identificada
+                
+                Formato requerido para la respuesta:
+                {instructions_format}""",
             ),
             (
                 "human",
-                'El historial del paciente:\n\n""" historial\n{evolution_text}\n"""',
+                """Por favor, analiza el siguiente historial médico y extrae la enfermedad principal con su código CIE:
+
+                HISTORIAL CLÍNICO:
+                ==================
+                {evolution_text}""",
             ),
         ],
         input_variables=["evolution_text"],
@@ -90,11 +107,23 @@ def evolutionTextAnalysis(
         processedEvolutionTexts = {}
         startTime = time.time()
 
-        for start in range(
-            0,
-            len(evolutionTexts),
-            min(numBatches, len(evolutionTexts)),
-        ):
+        # Helper function to calculate metrics
+        def calculateMetrics(results):
+            total = len(results)
+            validCount = sum(1 for result in results.values() if result["valid"])
+            errorCount = sum(
+                1
+                for result in results.values()
+                if not result["valid"] and result["processedOutput"].get("error")
+            )
+            return {
+                "accuracy": round(validCount / total * 100, 2),
+                "errors": round(errorCount / total * 100, 2),
+            }
+
+        # Process batches
+        for start in range(0, len(evolutionTexts), numBatches):
+            # Print progress once before processing
             printExecutionProgression(
                 modelInfo["modelName"],
                 len(processedEvolutionTexts),
@@ -102,52 +131,29 @@ def evolutionTextAnalysis(
                 processedModels,
                 totalModels,
             )
+
             batch = evolutionTexts[start : start + numBatches]
 
+            # Simplified parallel runner creation
             parallelRunner = RunnableParallel(
                 {
-                    str(batch[i]["ID"]): RunnableLambda(
-                        lambda records, j=i: processRecord(records[j])
-                    )
-                    for i in range(len(batch))
+                    str(item["ID"]): RunnableLambda(lambda x, i=i: processRecord(x[i]))
+                    for i, item in enumerate(batch)
                 }
             )
 
-            batchResults = parallelRunner.invoke(batch)
-            processedEvolutionTexts.update(batchResults)
-            printExecutionProgression(
-                modelInfo["modelName"],
-                len(processedEvolutionTexts),
-                len(evolutionTexts),
-                processedModels,
-                totalModels,
-            )
-        endTime = time.time()
+            processedEvolutionTexts.update(parallelRunner.invoke(batch))
 
-        accuracy = round(
-            sum(1 for result in processedEvolutionTexts.values() if result["valid"])
-            / len(processedEvolutionTexts)
-            * 100,
-            2,
-        )
-        errorOutputs = round(
-            sum(
-                1
-                for result in processedEvolutionTexts.values()
-                if not result["valid"] and result["processedOutput"].get("error")
-            )
-            / len(processedEvolutionTexts)
-            * 100,
-            2,
-        )
+        # Calculate final metrics
+        metrics = calculateMetrics(processedEvolutionTexts)
 
         return {
             "model": modelInfo,
             "performance": {
-                "accuracy": accuracy,
-                "incorrectOutputs": 100.00 - accuracy - errorOutputs,
-                "errors": errorOutputs,
-                "processingTime": round(endTime - startTime, 4),
+                "accuracy": metrics["accuracy"],
+                "incorrectOutputs": 100.00 - metrics["accuracy"] - metrics["errors"],
+                "errors": metrics["errors"],
+                "processingTime": round(time.time() - startTime, 4),
                 "numBatches": numBatches,
             },
             "evolutionTextsResults": processedEvolutionTexts,

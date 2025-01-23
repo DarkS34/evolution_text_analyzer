@@ -8,7 +8,6 @@ import ollama
 import requests
 import os
 
-
 def getArgs():
     parser = ArgumentParser(description="Script for processing with labeled modes.")
     parser.add_argument(
@@ -45,7 +44,7 @@ def checkOllamaConnected(url="http://localhost:11434"):
         return False
 
 
-def modelTemplate(
+def _modelTemplate(
     modelName: str,
     installed: bool,
     size: str | None,
@@ -61,73 +60,53 @@ def modelTemplate(
     }
 
 
+def _process_model_info(rawModel, installedModels):
+    installedModelInfo = next(
+        (model for model in installedModels if model["model"] == rawModel["modelName"]),
+        None,
+    )
+    
+    size = rawModel.get("size")
+    if not size and installedModelInfo and "size" in installedModelInfo:
+        size = f"{str(round(ByteSize(installedModelInfo['size']).to('GB'),1,))} GB"
+    
+    parameter_size = rawModel.get("parameter_size")
+    if not parameter_size and installedModelInfo and "details" in installedModelInfo:
+        parameter_size = installedModelInfo["details"].get("parameter_size")
+    
+    quantization_level = rawModel.get("quantization_level")
+    if not quantization_level and installedModelInfo and "details" in installedModelInfo:
+        quantization_level = installedModelInfo["details"].get("quantization_level")
+    
+    return _modelTemplate(
+        rawModel["modelName"],
+        installedModelInfo is not None,
+        size,
+        parameter_size,
+        quantization_level,
+    )
+
+
 def getModels(modelsListPath: Path):
-    modelsList = []
-    if modelsListPath.is_file():
-        try:
-            with open(modelsListPath, mode="r", encoding="utf-8") as modelsListFile:
-                if modelsListPath.suffix == ".json":
-                    rawModelsList: list = json.load(modelsListFile)
-
-                    for rawModel in rawModelsList:
-                        installedModelInfo = next(
-                            (
-                                installedModel
-                                for installedModel in ollama.list()["models"]
-                                if installedModel["model"] == rawModel["modelName"]
-                            ),
-                            None,
-                        )
-                        modelsList.append(
-                            modelTemplate(
-                                rawModel["modelName"],
-                                installedModelInfo is None,
-                                rawModel.get(
-                                    "size",
-                                    (
-                                        f"{str(round(ByteSize(installedModelInfo['size']).to('GB'),1,))} GB"
-                                        if installedModelInfo
-                                        and "size" in installedModelInfo
-                                        else None
-                                    ),
-                                ),
-                                rawModel.get(
-                                    "parameter_size",
-                                    (
-                                        installedModelInfo["details"].get(
-                                            "parameter_size"
-                                        )
-                                        if installedModelInfo
-                                        and "details" in installedModelInfo
-                                        else None
-                                    ),
-                                ),
-                                rawModel.get(
-                                    "quantization_level",
-                                    (
-                                        installedModelInfo["details"].get(
-                                            "quantization_level"
-                                        )
-                                        if installedModelInfo
-                                        and "details" in installedModelInfo
-                                        else None
-                                    ),
-                                ),
-                            )
-                        )
-                else:
-                    print(
-                        "List of models - Extension not supported. Extension must be: '.json'"
-                    )
-        except Exception as e:
-            raise Exception(f"Error while loading models: {e}")
-    else:
-        raise Exception(f"File does not exist in: {modelsListPath}")
-
-    if len(modelsList) > 0:
-        return modelsList
-    else:
-        raise Exception("No models to use.")
+    if not modelsListPath.is_file():
+        raise FileNotFoundError(f"File does not exist in: {modelsListPath}")
+        
+    if modelsListPath.suffix != ".json":
+        raise ValueError("List of models - Extension not supported. Extension must be: '.json'")
+    
+    try:
+        with open(modelsListPath, mode="r", encoding="utf-8") as modelsListFile:
+            rawModelsList = json.load(modelsListFile)
+            installedModels = ollama.list()["models"]
+            modelsList = [_process_model_info(model, installedModels) for model in rawModelsList]
+            
+            if not modelsList:
+                raise ValueError("No models to use.")
+                
+            return modelsList
+            
+    except (json.JSONDecodeError, KeyError) as e:
+        raise ValueError(f"Error while loading models: {e}")
 
 
 def getEvolutionTexts(path: Path):
@@ -142,23 +121,23 @@ def getEvolutionTexts(path: Path):
             elif fileExtension == ".json":
                 evolutionTextsList = json.load(file)
             else:
-                raise Exception(
+                raise ValueError(
                     "Evolution Texts - Extension not supported. Extension must be: '.json', '.csv'"
                 )
     except FileNotFoundError:
-        raise Exception(f"File '{path}' not found")
-    except Exception as e:
-        raise Exception(f"Error: {e}")
+        raise FileNotFoundError(f"File '{path}' not found")
     return evolutionTextsList
 
 
 def downloadModel(model: dict):
+    success = False
     try:
         print(f"\rDownloading: '{model['modelName']}'", end="")
         ollama.pull(model["modelName"])
-    except Exception as e:
+        success = True
+    except (ollama.ResponseError, requests.RequestException) as e:
         print(f"Error: {e}")
-        return False
+        success = False
     finally:
         installedModelInfo = next(
             (
@@ -191,8 +170,9 @@ def downloadModel(model: dict):
                     }
                 )
             model.pop("installed")
-            return True
-        return False
+            success = True
+
+    return success
 
 
 def checkModel(model):
