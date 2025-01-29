@@ -136,12 +136,12 @@
   },
   {
     "modelName": "deepseek-r1:8b-llama-distill-q8_0",
-    "size": "16.0 GB",
+    "size": "8.5 GB",
     "parameter_size": "8B",
     "quantization_level": "Q8_0"
   },
   {
-    "modelName": "deepseek-r1:8b-llama-distill-fp16",
+    "modelName": "deepseek-r1:14b-qwen-distill-q8_0",
     "size": "16.0 GB",
     "parameter_size": "14.7B",
     "quantization_level": "Q8_0"
