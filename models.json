@@ -6,9 +6,6 @@
     "quantization_level": "Q4_K_M"
   },
   {
-    "modelName": "llama3.1:latest"
-  },
-  {
     "modelName": "llama3.1:8b-instruct-q8_0",
     "size": "8.5 GB",
     "parameter_size": "8B",

@@ -38,33 +38,20 @@ def evolutionTextAnalysis(
         )
 
     parser = JsonOutputParser(pydantic_object=DeseaseAnalysis)
-
+    
     # Prompt
     prompt = ChatPromptTemplate(
         messages=[
             (
                 "system",
-                """Eres un asistente médico especializado en reumatología con experiencia en codificación CIE. Tu función es:
-                1. Analizar cuidadosamente el historial médico proporcionado
-                2. Identificar la enfermedad reumatológica principal del paciente
-                3. Proporcionar el código CIE correspondiente
-                
-                Instrucciones específicas:
-                - Céntrate solo en la enfermedad reumatológica principal
-                - Si hay múltiples condiciones, selecciona la más relevante o grave
-                - Ignora condiciones secundarias o no reumatológicas
-                - Asegúrate de que el código CIE sea específico para la condición identificada
-                
+                """Eres un sistema médico especializado en el análisis de historiales médicos sobre enfermedades reumatológicas. 
+                Tu tarea es identificar y extraer el nombre y el código CIE correspondiente a la enfermedad principal mencionada en el siguiente historial.
                 Formato requerido para la respuesta:
                 {instructions_format}""",
             ),
             (
                 "human",
-                """Por favor, analiza el siguiente historial médico y extrae la enfermedad principal con su código CIE:
-
-                HISTORIAL CLÍNICO:
-                ==================
-                {evolution_text}""",
+                'El historial del paciente:\n\n""" historial\n{evolution_text}\n"""',
             ),
         ],
         input_variables=["evolution_text"],

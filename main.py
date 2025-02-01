@@ -22,7 +22,7 @@ if __name__ == "__main__" and checkOllamaConnected():
 
     match args.mode:
         case 1:
-            models = getModels(MODELS_LIST_FILENAME)
+            models = getModels(MODELS_LIST_FILENAME, args.installed)
             modelsResults = []
             for mIdx, model in enumerate(models):
                 if checkModel(model):
@@ -31,7 +31,7 @@ if __name__ == "__main__" and checkOllamaConnected():
                     )
                     updateResults(results_dir, partialResults, modelsResults)
         case 2:
-            model = chooseModel(MODELS_LIST_FILENAME)
+            model = chooseModel(MODELS_LIST_FILENAME, args.installed)
             if model:
                 results = evolutionTextAnalysis(model, medicalData, args.batches)
                 updateResults(results_dir, results, [])

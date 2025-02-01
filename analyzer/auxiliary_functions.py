@@ -25,6 +25,11 @@ def getArgs():
         required=False,
         help="Number of batches for parallel evolution texts processing (5-20, default: 5)",
     )
+    parser.add_argument(
+        "-installed",
+        action="store_true",
+        help="Use only installed models (default: False)",
+    )
 
     return parser.parse_args()
 
@@ -87,7 +92,7 @@ def _process_model_info(rawModel, installedModels):
     )
 
 
-def getModels(modelsListPath: Path):
+def getModels(modelsListPath: Path, installedFlag: bool):
     if not modelsListPath.is_file():
         raise FileNotFoundError(f"File does not exist in: {modelsListPath}")
         
@@ -99,9 +104,10 @@ def getModels(modelsListPath: Path):
             rawModelsList = json.load(modelsListFile)
             installedModels = ollama.list()["models"]
             modelsList = [_process_model_info(model, installedModels) for model in rawModelsList]
-            
             if not modelsList:
                 raise ValueError("No models to use.")
+            if (installedFlag):
+                modelsList = [model for model in modelsList if model["installed"]]
                 
             return modelsList
             
@@ -182,8 +188,8 @@ def checkModel(model):
     return True
 
 
-def chooseModel(modelsListPath: Path):
-    modelsList = getModels(modelsListPath)
+def chooseModel(modelsListPath: Path, installedFlag: bool):
+    modelsList = getModels(modelsListPath, installedFlag)
     modelNameWidth = max(len(model["modelName"]) for model in modelsList) + 4
 
     for i, model in enumerate(modelsList, start=1):

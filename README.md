@@ -19,7 +19,7 @@ The script follows a structured process to analyze medical evolution texts using
 
 ### 1. Initialization
 - When the script starts, it connects to the **Ollama framework** to ensure the required environment is active.
-- It parses the input arguments to determine the operational mode (`-mode 1` or `-mode 2`, by default 1) and the number of batches for processing (`-batches`, by default 5).
+- It parses the input arguments to determine the operational mode (`-mode 1` or `-mode 2`), the number of batches for processing (`-batches n`) and if only to use installed models (`-installed`).
 
 ### 2. Mode Selection
 - **Mode 1**: 
@@ -77,26 +77,26 @@ After processing each model (in both modes 1 and 2), the results are stored in a
 ## Usage
 Run the main script with the appropriate arguments:
 
-### Modes
-- **Mode 1**: Evaluate all models listed in `models.json`.
-- **Mode 2**: Choose a specific model for evaluation.
+
 
 ### Command-Line Arguments
 - `-mode`: Specify operation mode (`1` or `2`, by default: `1`).
+  - `-mode 1`: Evaluate all models listed in `models.json`.
+  - `-mode 2`: Choose a specific model for evaluation.
 - `-batches`: Number of batches for parallel processing (by default: 5).
+- `-installed`: Only use installed models from the list (by default: False).
 
 ### Example
 ```bash
-python main.py -batches 10
+python main.py -mode 2 -batches 10 -installed
 ```
 Or:
 ```bash
-uv run main.py -batches 10
+uv run main.py -mode 2 -batches 10 -installed
 ```
 ---
 
 ## Directory structure
-
 ```bash
 .
 ├── analyzer/
