@@ -43,7 +43,7 @@ For each batch of input data, the program:
 3. Validates the model's output against the known correct diagnosis using a validation function.
 
 ### 5. Result Tracking
-After processing each model (in both modes 1 and 2), the results are stored in a `detailedResults.json` file located in the `results` directory. Results file includes the following information per processed model:
+After processing each model, the results are stored in a `.json` file located in the `results` directory. In mode 1 the `.json` file is called `results_allListedModels.json`, as for mode 2, the file is named as the name of the model (f.e. `results_llama3.1.json`) Results file includes the following information per processed model:
 - Model information (name, size, parameter_size, and quantization_level).
 - Performance metrics include:
   - Accuracy.
@@ -85,14 +85,15 @@ Run the main script with the appropriate arguments:
   - `-mode 2`: Choose a specific model for evaluation.
 - `-batches`: Number of batches for parallel processing (by default: 5).
 - `-installed`: Only use installed models from the list (by default: False).
+- `-reason`: provides a reasoning for each result (by default: False).
 
 ### Example
 ```bash
-python main.py -mode 2 -batches 10 -installed
+python main.py -mode 2 -batches 10 -installed -reason
 ```
 Or:
 ```bash
-uv run main.py -mode 2 -batches 10 -installed
+uv run main.py -mode 2 -batches 10 -installed -reason
 ```
 ---
 
