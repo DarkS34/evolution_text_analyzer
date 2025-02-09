@@ -7,6 +7,25 @@ import json
 import ollama
 import requests
 import os
+import math
+
+# https://mediately.co/_next/data/ca334f6100043fcbd2d00ec1242b3b547e1f226a/es/icd.json?classificationCode=
+
+
+def checkOllamaConnected(url="http://localhost:11434"):
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            return True
+        else:
+            print("There is a problem. Try to restart Ollama to see available models.")
+            return False
+    except requests.ConnectionError as e:
+        print(
+            f"Error:\n{e}.\nOllama is not running. Start ollama to see available models.\n"
+        )
+        return False
+
 
 def getArgs():
     parser = ArgumentParser(description="Script for processing with labeled modes.")
@@ -30,89 +49,13 @@ def getArgs():
         action="store_true",
         help="Use only installed models (default: False)",
     )
+    parser.add_argument(
+        "-reason",
+        action="store_true",
+        help="Models reason the result for each processed evolution text (default: False)",
+    )
 
     return parser.parse_args()
-
-
-def checkOllamaConnected(url="http://localhost:11434"):
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return True
-        else:
-            print("There is a problem. Try to restart Ollama to see available models.")
-            return False
-    except requests.ConnectionError as e:
-        print(
-            f"Error:\n{e}.\nOllama is not running. Start ollama to see available models.\n"
-        )
-        return False
-
-
-def _modelTemplate(
-    modelName: str,
-    installed: bool,
-    size: str | None,
-    parameter_size: str | None,
-    quantization_level: str | None,
-):
-    return {
-        "modelName": modelName,
-        "installed": installed,
-        "size": size,
-        "parameterSize": parameter_size,
-        "quantizationLevel": quantization_level,
-    }
-
-
-def _process_model_info(rawModel, installedModels):
-    installedModelInfo = next(
-        (model for model in installedModels if model["model"] == rawModel["modelName"]),
-        None,
-    )
-    
-    size = rawModel.get("size")
-    if not size and installedModelInfo and "size" in installedModelInfo:
-        size = f"{str(round(ByteSize(installedModelInfo['size']).to('GB'),1,))} GB"
-    
-    parameter_size = rawModel.get("parameter_size")
-    if not parameter_size and installedModelInfo and "details" in installedModelInfo:
-        parameter_size = installedModelInfo["details"].get("parameter_size")
-    
-    quantization_level = rawModel.get("quantization_level")
-    if not quantization_level and installedModelInfo and "details" in installedModelInfo:
-        quantization_level = installedModelInfo["details"].get("quantization_level")
-    
-    return _modelTemplate(
-        rawModel["modelName"],
-        installedModelInfo is not None,
-        size,
-        parameter_size,
-        quantization_level,
-    )
-
-
-def getModels(modelsListPath: Path, installedFlag: bool):
-    if not modelsListPath.is_file():
-        raise FileNotFoundError(f"File does not exist in: {modelsListPath}")
-        
-    if modelsListPath.suffix != ".json":
-        raise ValueError("List of models - Extension not supported. Extension must be: '.json'")
-    
-    try:
-        with open(modelsListPath, mode="r", encoding="utf-8") as modelsListFile:
-            rawModelsList = json.load(modelsListFile)
-            installedModels = ollama.list()["models"]
-            modelsList = [_process_model_info(model, installedModels) for model in rawModelsList]
-            if not modelsList:
-                raise ValueError("No models to use.")
-            if (installedFlag):
-                modelsList = [model for model in modelsList if model["installed"]]
-                
-            return modelsList
-            
-    except (json.JSONDecodeError, KeyError) as e:
-        raise ValueError(f"Error while loading models: {e}")
 
 
 def getEvolutionTexts(path: Path):
@@ -133,6 +76,59 @@ def getEvolutionTexts(path: Path):
     except FileNotFoundError:
         raise FileNotFoundError(f"File '{path}' not found")
     return evolutionTextsList
+
+
+def getModels(modelsListPath: Path, installedFlag: bool):
+    def _process_model_info(rawModel, installedModels):
+        installedModelInfo = next(
+            (model for model in installedModels if model["model"] == rawModel),
+            None,
+        )
+
+        size = None
+        if installedModelInfo and "size" in installedModelInfo:
+            size = f"{str(round(ByteSize(installedModelInfo['size']).to('GB'),1,))} GB"
+
+        parameter_size = None
+        if installedModelInfo and "details" in installedModelInfo:
+            parameter_size = installedModelInfo["details"].get("parameter_size")
+
+        quantization_level = None
+        if installedModelInfo and "details" in installedModelInfo:
+            quantization_level = installedModelInfo["details"].get("quantization_level")
+
+        return {
+            "modelName": rawModel,
+            "installed": installedModelInfo is not None,
+            "size": size,
+            "parameterSize": parameter_size,
+            "quantizationLevel": quantization_level,
+        }
+
+    if not modelsListPath.is_file():
+        raise FileNotFoundError(f"File does not exist in: {modelsListPath}")
+
+    if modelsListPath.suffix != ".json":
+        raise ValueError(
+            "List of models - Extension not supported. Extension must be: '.json'"
+        )
+
+    try:
+        with open(modelsListPath, mode="r", encoding="utf-8") as modelsListFile:
+            rawModelsList = json.load(modelsListFile)
+            installedModels = ollama.list()["models"]
+            modelsList = [
+                _process_model_info(model, installedModels) for model in rawModelsList
+            ]
+            if not modelsList:
+                raise ValueError("No models to use.")
+            if installedFlag:
+                modelsList = [model for model in modelsList if model["installed"]]
+
+            return modelsList
+
+    except (json.JSONDecodeError, KeyError) as e:
+        raise ValueError(f"Error while loading models: {e}")
 
 
 def downloadModel(model: dict):
@@ -163,9 +159,9 @@ def downloadModel(model: dict):
                         + " GB"
                     }
                 )
-            if not model.get("parametersSize"):
+            if not model.get("parameterSize"):
                 model.update(
-                    {"parametersSize": installedModelInfo["details"]["parameter_size"]}
+                    {"parameterSize": installedModelInfo["details"]["parameter_size"]}
                 )
             if not model.get("quantizationLevel"):
                 model.update(
@@ -181,7 +177,7 @@ def downloadModel(model: dict):
     return success
 
 
-def checkModel(model):
+def checkModel(model: dict):
     if not model["installed"]:
         return downloadModel(model)
     model.pop("installed")
@@ -191,16 +187,28 @@ def checkModel(model):
 def chooseModel(modelsListPath: Path, installedFlag: bool):
     modelsList = getModels(modelsListPath, installedFlag)
     modelNameWidth = max(len(model["modelName"]) for model in modelsList) + 4
+    installedWidth = len("Not installed") + 4
+    detailsWidth = 15
 
+    print(
+        f"{'ID'.rjust(4)} {'NAME'.ljust(modelNameWidth)}{'AVAILABLE'.ljust(installedWidth)}{"SIZE".ljust(detailsWidth-5)}{'PARAMETERS'.ljust(detailsWidth)}{'QUANTIZATION'.ljust(detailsWidth)}"
+    )
     for i, model in enumerate(modelsList, start=1):
+        installedMsg = (
+            f"{'Installed'.ljust(installedWidth)}{model['size'].ljust(detailsWidth-5)}{model['parameterSize'].ljust(detailsWidth)}{model['quantizationLevel'].ljust(detailsWidth)}"
+            if model["installed"]
+            else "Not installed"
+        )
         print(
-            f"{(str(i)+'.').rjust(3)} {model['modelName'].ljust(modelNameWidth)}{'Installed' if model['installed'] else 'Not installed'}"
+            f"{(str(i)+'.').rjust(4)} {model['modelName'].ljust(modelNameWidth)}{installedMsg}"
         )
 
     while True:
-        j = int(input(f"\nSelect model (1 - {len(modelsList)}): ")) - 1
-        if j in range(0, len(modelsList)):
-            break
+        j = input(f"\nSelect model (1 - {len(modelsList)}): ")
+        if j.isnumeric():
+            j = int(j) - 1
+            if j in range(0, len(modelsList)):
+                break
 
     choosenModel = modelsList[j]
     if checkModel(choosenModel):
@@ -212,18 +220,39 @@ def chooseModel(modelsListPath: Path, installedFlag: bool):
 def printProcessedResults(results: dict):
     for id, processedETResult in results["evolutionTextsResults"].items():
         print(
-            f"\n{id} - {processedETResult['valid']} {'-'*20}\nModel result: {processedETResult['processedOutput'].get('principal_diagnostic')} ({processedETResult['processedOutput'].get('icd_code')})\nCorrect result: {processedETResult['correctOutput']['principal_diagnostic']}"
+            f"""
+        {id} - {processedETResult['valid']} {'-'*20}
+        Model result: {processedETResult['processedOutput'].get('principal_diagnostic')} ({processedETResult['processedOutput'].get('icd_code')})
+        Correct result: {processedETResult['correctOutput']['principal_diagnostic']}
+        """,
+            (
+                f"Reasoning: {processedETResult['processedOutput'].get('reasoning')}\n"
+                if processedETResult["processedOutput"].get("reasoning")
+                else ""
+            ),
+            (
+                f"Error: {processedETResult['processedOutput'].get('error')}\n"
+                if processedETResult["processedOutput"].get("error")
+                else ""
+            ),
         )
-    print(f"\n\tAccuracy: {results['performance']['accuracy']:.2f}%")
-    print(f"\tIncorrect outputs: {results['performance']['incorrectOutputs']:.2f}%")
-    print(f"\tErrors: {results['performance']['errors']:.2f}%")
-    print(f"\tProcessing time: {results['performance']['processingTime']} s.")
+
+    print(
+        f"""
+        Accuracy: {results['performance']['accuracy']}% ({int((results['performance']['accuracy']/100) * results['performance']['totalRecordsProcessed'])}/{results['performance']['totalRecordsProcessed']})
+        Incorrect outputs: {results['performance']['incorrectOutputs']}% ({int((results['performance']['incorrectOutputs']/100) * results['performance']['totalRecordsProcessed'])}/{results['performance']['totalRecordsProcessed']})
+        Errors: {results['performance']['errors']}% ({int((results['performance']['errors']/100) * results['performance']['totalRecordsProcessed'])}/{results['performance']['totalRecordsProcessed']})
+        Processing time: {results['performance']['processingTime']} s.
+        Batches: {results['performance']['numBatches']}
+        Total records processed: {results['performance']['totalRecordsProcessed']}
+    """
+    )
 
 
 def updateResults(resultsDirPath: Path, partialResult: dict, modelsResults: list):
     modelsResults.append(partialResult)
     modelsResults.sort(key=lambda x: x["performance"]["accuracy"], reverse=True)
-    writeProcessedResult(resultsDirPath / "detailedResults.json", modelsResults)
+    writeProcessedResult(resultsDirPath / "results_allListedModels.json", modelsResults)
 
 
 def writeProcessedResult(resultsPath: str, results: dict):

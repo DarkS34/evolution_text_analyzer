@@ -8,7 +8,9 @@ from analyzer.auxiliary_functions import (
     chooseModel,
     updateResults,
     printProcessedResults,
+    writeProcessedResult,
 )
+from analyzer.parallel_ollama_et_analyzer import evolutionTextAnalysis
 from analyzer.parallel_ollama_et_analyzer import evolutionTextAnalysis
 
 if __name__ == "__main__" and checkOllamaConnected():
@@ -27,14 +29,19 @@ if __name__ == "__main__" and checkOllamaConnected():
             for mIdx, model in enumerate(models):
                 if checkModel(model):
                     partialResults = evolutionTextAnalysis(
-                        model, medicalData, args.batches, mIdx, len(models)
+                        model, medicalData, args.batches, args.reason, mIdx, len(models)
                     )
                     updateResults(results_dir, partialResults, modelsResults)
         case 2:
             model = chooseModel(MODELS_LIST_FILENAME, args.installed)
             if model:
-                results = evolutionTextAnalysis(model, medicalData, args.batches)
-                updateResults(results_dir, results, [])
+                # results = evolutionTextAnalysis(model, medicalData, args.batches)
+                results = evolutionTextAnalysis(
+                    model, medicalData, args.batches, args.reason
+                )
                 printProcessedResults(results)
+                writeProcessedResult(
+                    results_dir / f"results_{model["modelName"].split(":")[0]}.json", results
+                )
         case _:
             print("Modo no disponible")

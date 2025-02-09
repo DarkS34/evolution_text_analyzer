@@ -12,17 +12,19 @@ def evolutionTextAnalysis(
     modelInfo: dict,
     medicalData: list,
     numBatches: int,
+    reasoningMode: bool,
     processedModels: int = 1,
     totalModels: int = 1,
 ):
+    isReasoningModel = modelInfo["modelName"].find("deepseek") != -1
     # Model
     model = OllamaLLM(
         model=modelInfo["modelName"],
         temperature=0,
         top_p=0.9,
         verbose=False,
-        format="json",
-        seed=2,
+        format="" if isReasoningModel else "json",
+        seed=123,
     )
     numBatches = min(numBatches, len(medicalData))
 
@@ -36,26 +38,36 @@ def evolutionTextAnalysis(
             title="Nombre enfermedad",
             description="Nombre de la enfermedad principal, basado en el historial del paciente",
         )
+        if reasoningMode:
+            reasoning: str = Field(
+                title="Razonamiento",
+                description="Breve razonamiento del sistema para identificar la enfermedad principal",
+            )
 
     parser = JsonOutputParser(pydantic_object=DeseaseAnalysis)
-    
+
+    system_prompt = f"""Eres un sistema médico especializado en el análisis de historiales médicos sobre enfermedades reumatológicas. Tu tarea es identificar y extraer el nombre y el código CIE correspondiente a la enfermedad principal mencionada en el siguiente historial. {'Además, debes proporcionar un breve razonamiento de 50 palabras sobre cómo llegaste a esa conclusión.' if reasoningMode else ''}
+    """
+
     # Prompt
     prompt = ChatPromptTemplate(
         messages=[
             (
                 "system",
-                """Eres un sistema médico especializado en el análisis de historiales médicos sobre enfermedades reumatológicas. 
-                Tu tarea es identificar y extraer el nombre y el código CIE correspondiente a la enfermedad principal mencionada en el siguiente historial.
+                """\n\n{system_prompt}
                 Formato requerido para la respuesta:
                 {instructions_format}""",
             ),
             (
                 "human",
-                'El historial del paciente:\n\n""" historial\n{evolution_text}\n"""',
+                'El historial del paciente:\n\n"""\n{evolution_text}\n"""',
             ),
         ],
         input_variables=["evolution_text"],
-        partial_variables={"instructions_format": parser.get_format_instructions()},
+        partial_variables={
+            "instructions_format": parser.get_format_instructions(),
+            "system_prompt": system_prompt,
+        },
     )
 
     # Chain configuration
@@ -82,6 +94,7 @@ def evolutionTextAnalysis(
                 "processedOutput": {
                     "icd_code": None,
                     "principal_diagnostic": None,
+                    **({"reasoning": None} if not reasoningMode else {}),
                     "error": str(e),
                 },
                 "correctOutput": {
@@ -105,6 +118,9 @@ def evolutionTextAnalysis(
             )
             return {
                 "accuracy": round(validCount / total * 100, 2),
+                "incorrectOutputs": round(
+                    100.00 - ((validCount + errorCount) / total * 100), 2
+                ),
                 "errors": round(errorCount / total * 100, 2),
             }
 
@@ -138,10 +154,11 @@ def evolutionTextAnalysis(
             "model": modelInfo,
             "performance": {
                 "accuracy": metrics["accuracy"],
-                "incorrectOutputs": 100.00 - metrics["accuracy"] - metrics["errors"],
+                "incorrectOutputs": metrics["incorrectOutputs"],
                 "errors": metrics["errors"],
                 "processingTime": round(time.time() - startTime, 4),
                 "numBatches": numBatches,
+                "totalRecordsProcessed": len(evolutionTexts),
             },
             "evolutionTextsResults": processedEvolutionTexts,
         }
