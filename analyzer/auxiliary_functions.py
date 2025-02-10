@@ -242,9 +242,12 @@ def printProcessedResults(results: dict):
         Accuracy: {results['performance']['accuracy']}% ({int((results['performance']['accuracy']/100) * results['performance']['totalRecordsProcessed'])}/{results['performance']['totalRecordsProcessed']})
         Incorrect outputs: {results['performance']['incorrectOutputs']}% ({int((results['performance']['incorrectOutputs']/100) * results['performance']['totalRecordsProcessed'])}/{results['performance']['totalRecordsProcessed']})
         Errors: {results['performance']['errors']}% ({int((results['performance']['errors']/100) * results['performance']['totalRecordsProcessed'])}/{results['performance']['totalRecordsProcessed']})
-        Processing time: {results['performance']['processingTime']} s.
         Batches: {results['performance']['numBatches']}
         Total records processed: {results['performance']['totalRecordsProcessed']}
+         
+        Duration: {results['performance']['processingTime']['duration']} s.
+        Start time: {results['performance']['processingTime']['startDate']}
+        End time: {results['performance']['processingTime']['endDate']}
     """
     )
 

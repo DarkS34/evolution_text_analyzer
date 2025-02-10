@@ -27,6 +27,7 @@ def evolutionTextAnalysis(
         seed=123,
     )
     numBatches = min(numBatches, len(medicalData))
+    dateFormat = "%H:%M:%S %d-%m-%Y"
 
     # Parser - Json Object
     class DeseaseAnalysis(BaseModel):
@@ -46,15 +47,18 @@ def evolutionTextAnalysis(
 
     parser = JsonOutputParser(pydantic_object=DeseaseAnalysis)
 
-    system_prompt = f"""Eres un sistema médico especializado en el análisis de historiales médicos sobre enfermedades reumatológicas. Tu tarea es identificar y extraer el nombre y el código CIE correspondiente a la enfermedad principal mencionada en el siguiente historial. {'Además, debes proporcionar un breve razonamiento de 50 palabras sobre cómo llegaste a esa conclusión.' if reasoningMode else ''}
-    """
+    reasoning_prompt = (
+        f"Además, debes proporcionar un breve razonamiento de 50 palabras sobre cómo llegaste a esa conclusión."
+        if reasoningMode
+        else ""
+    )
 
     # Prompt
     prompt = ChatPromptTemplate(
         messages=[
             (
                 "system",
-                """\n\n{system_prompt}
+                """Eres un sistema médico especializado en el análisis de historiales médicos sobre enfermedades reumatológicas. Tu tarea es identificar y extraer el nombre y el código CIE correspondiente a la enfermedad principal mencionada en el siguiente historial. {reasoning_prompt}
                 Formato requerido para la respuesta:
                 {instructions_format}""",
             ),
@@ -66,7 +70,7 @@ def evolutionTextAnalysis(
         input_variables=["evolution_text"],
         partial_variables={
             "instructions_format": parser.get_format_instructions(),
-            "system_prompt": system_prompt,
+            "reasoning_prompt": reasoning_prompt,
         },
     )
 
@@ -105,7 +109,7 @@ def evolutionTextAnalysis(
     # Parallel process execution (in batches)
     def executeInBatches(evolutionTexts: list):
         processedEvolutionTexts = {}
-        startTime = time.time()
+        startTime = {"startDuration": time.time(), "startDate": time.localtime()}
 
         # Helper function to calculate metrics
         def calculateMetrics(results):
@@ -147,6 +151,7 @@ def evolutionTextAnalysis(
 
             processedEvolutionTexts.update(parallelRunner.invoke(batch))
 
+        endTime = {"endDuration": time.time(), "endDate": time.localtime()}
         # Calculate final metrics
         metrics = calculateMetrics(processedEvolutionTexts)
 
@@ -156,7 +161,13 @@ def evolutionTextAnalysis(
                 "accuracy": metrics["accuracy"],
                 "incorrectOutputs": metrics["incorrectOutputs"],
                 "errors": metrics["errors"],
-                "processingTime": round(time.time() - startTime, 4),
+                "processingTime": {
+                    "duration": round(
+                        endTime["endDuration"] - startTime["startDuration"], 2
+                    ),
+                    "startDate": time.strftime(dateFormat, startTime["startDate"]),
+                    "endDate": time.strftime(dateFormat, endTime["endDate"]),
+                },
                 "numBatches": numBatches,
                 "totalRecordsProcessed": len(evolutionTexts),
             },
