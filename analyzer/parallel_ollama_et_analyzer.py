@@ -21,6 +21,7 @@ def evolutionTextAnalysis(
     model = OllamaLLM(
         model=modelInfo["modelName"],
         temperature=0,
+        num_ctx=8192,
         top_p=0.9,
         verbose=False,
         format="" if isReasoningModel else "json",

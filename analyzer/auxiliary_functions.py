@@ -2,12 +2,11 @@ from pathlib import Path
 from argparse import ArgumentParser
 from pydantic import ByteSize
 
-import csv
 import json
 import ollama
 import requests
 import os
-import math
+import pandas as pd
 
 # https://mediately.co/_next/data/ca334f6100043fcbd2d00ec1242b3b547e1f226a/es/icd.json?classificationCode=
 
@@ -40,7 +39,7 @@ def getArgs():
     parser.add_argument(
         "-batches",
         type=int,
-        default=5,
+        default=2,
         required=False,
         help="Number of batches for parallel evolution texts processing (5-20, default: 5)",
     )
@@ -64,9 +63,11 @@ def getEvolutionTexts(path: Path):
     try:
         with open(path, mode="r", encoding="utf-8") as file:
             if fileExtension == ".csv":
-                lector = csv.DictReader(file, delimiter="|")
-                for line in lector:
-                    evolutionTextsList.append(dict(line))
+                evolutionTextsList = pd.read_csv(
+                    file,
+                    sep="|",
+                    usecols=["ID", "principal_diagnostic", "evolution_text"],
+                ).to_dict(orient='records')
             elif fileExtension == ".json":
                 evolutionTextsList = json.load(file)
             else:
