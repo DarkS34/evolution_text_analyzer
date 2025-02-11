@@ -66,6 +66,7 @@ def getEvolutionTexts(path: Path):
                 evolutionTextsList = pd.read_csv(
                     file,
                     sep="|",
+                    quotechar="'",
                     usecols=["ID", "principal_diagnostic", "evolution_text"],
                 ).to_dict(orient='records')
             elif fileExtension == ".json":
@@ -76,6 +77,10 @@ def getEvolutionTexts(path: Path):
                 )
     except FileNotFoundError:
         raise FileNotFoundError(f"File '{path}' not found")
+    
+    for et in evolutionTextsList:
+        et["evolution_text"] = et["evolution_text"].replace("\n", " ")
+        
     return evolutionTextsList
 
 
