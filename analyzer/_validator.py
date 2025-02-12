@@ -10,16 +10,11 @@ extendedDiagMap = {
     "Dupuytren": "Enfermedad de Dupuytren",
     "ESCLEROSIS SISTÉMICA": "Esclerosis Sistémica",
     "LES": "Lupus Eritematoso Sistémico",
-    "Artritis reumatoide": "Artritis Reumatoide",
     "AIJ": "Artritis Idiopática Juvenil",
     "EDPP": "Espondilopatía Degenerativa Primaria",
     "ENF. INDIFERENCIADA DEL TEJIDO CONECTIVO": "Enfermedad Indiferenciada del Tejido Conectivo",
     "Deficit Vitamina D": "Déficit de Vitamina D",
     "STC": "Síndrome del Túnel Carpiano",
-    "Esclerodermia": "Esclerodermia",
-    "Artritis": "Artritis",
-    "Escoliosis": "Escoliosis",
-    "Discopatia": "Discopatía",
     "Morton": "Neuroma de Morton",
     "Estenosis de canal": "Estenosis de canal",
     "Artrosis axial": "Artrosis axial",
@@ -42,6 +37,7 @@ extendedDiagMap = {
     "Miopatia inflamatoria": "Miopatía Inflamatoria",
     "Beçhet": "Enfermedad de Behçet",
     "Artritis gotosa aguda": "Gota",
+    "Artritis goutosa": "Gota",
 }
 
 

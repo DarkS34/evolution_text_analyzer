@@ -1,11 +1,43 @@
-from langchain_core.output_parsers import JsonOutputParser
-from langchain.prompts import ChatPromptTemplate
+from langchain.prompts import (
+    ChatPromptTemplate,
+    SystemMessagePromptTemplate,
+    HumanMessagePromptTemplate,
+)
+from langchain.output_parsers import PydanticOutputParser
 from langchain_ollama.llms import OllamaLLM
 from langchain_core.runnables import RunnableLambda, RunnableParallel
+
 from pydantic import BaseModel, Field
+
 from analyzer.auxiliary_functions import printExecutionProgression
-from analyzer.validator import validateResult
+from analyzer._validator import validateResult
 import time
+
+# # You can add custom validation logic easily with Pydantic.
+# @validator('likelihood_of_success')
+# def check_score(cls, field):
+#     if field >10:
+#         raise ValueError("Badly formed Score")
+#     return field
+# https://mediately.co/_next/data/ca334f6100043fcbd2d00ec1242b3b547e1f226a/es/icd.json?classificationCode=
+
+
+class DeseaseAnalysisBase(BaseModel):
+    icd_code: str = Field(
+        title="Código CIE enfermedad",
+        description="Código CIE de la enfermedad principal, basado en el historial del paciente",
+    )
+    principal_diagnostic: str = Field(
+        title="Nombre enfermedad",
+        description="Nombre de la enfermedad principal, basado en el historial del paciente",
+    )
+
+
+class DeseaseAnalysisWithReasoning(DeseaseAnalysisBase):
+    reasoning: str = Field(
+        title="Razonamiento",
+        description="Breve razonamiento del sistema para identificar la enfermedad principal",
+    )
 
 
 def evolutionTextAnalysis(
@@ -27,26 +59,16 @@ def evolutionTextAnalysis(
         format="" if isReasoningModel else "json",
         seed=123,
     )
+    
     numBatches = min(numBatches, len(medicalData))
     dateFormat = "%H:%M:%S %d-%m-%Y"
 
-    # Parser - Json Object
-    class DeseaseAnalysis(BaseModel):
-        icd_code: str = Field(
-            title="Código CIE enfermedad",
-            description="Código CIE de la enfermedad principal, basado en el historial del paciente",
+    # Parser
+    parser = PydanticOutputParser(
+        pydantic_object=(
+            DeseaseAnalysisWithReasoning if reasoningMode else DeseaseAnalysisBase
         )
-        principal_diagnostic: str = Field(
-            title="Nombre enfermedad",
-            description="Nombre de la enfermedad principal, basado en el historial del paciente",
-        )
-        if reasoningMode:
-            reasoning: str = Field(
-                title="Razonamiento",
-                description="Breve razonamiento del sistema para identificar la enfermedad principal",
-            )
-
-    parser = JsonOutputParser(pydantic_object=DeseaseAnalysis)
+    )
 
     reasoning_prompt = (
         f"Además, debes proporcionar un breve razonamiento de 50 palabras sobre cómo llegaste a esa conclusión."
@@ -54,27 +76,26 @@ def evolutionTextAnalysis(
         else ""
     )
 
+    system_template = """Eres un sistema médico especializado en el análisis de historiales médicos sobre enfermedades reumatológicas.
+    Tu tarea es identificar y extraer el nombre y el código CIE correspondiente a la enfermedad principal mencionada en el siguiente historial. {reasoning_prompt}
+    
+    Formato requerido para la respuesta:
+    {instructions_format}"""
+
     # Prompt
     prompt = ChatPromptTemplate(
         messages=[
-            (
-                "system",
-                """Eres un sistema médico especializado en el análisis de historiales médicos sobre enfermedades reumatológicas. Tu tarea es identificar y extraer el nombre y el código CIE correspondiente a la enfermedad principal mencionada en el siguiente historial. {reasoning_prompt}
-                Formato requerido para la respuesta:
-                {instructions_format}""",
-            ),
-            (
-                "human",
-                'El historial del paciente:\n\n"""\n{evolution_text}\n"""',
+            SystemMessagePromptTemplate.from_template(system_template),
+            HumanMessagePromptTemplate.from_template(
+                'El historial del paciente:\n\n"""\n{evolution_text}\n"""'
             ),
         ],
-        input_variables=["evolution_text"],
-        partial_variables={
-            "instructions_format": parser.get_format_instructions(),
-            "reasoning_prompt": reasoning_prompt,
-        },
     )
 
+    prompt = prompt.partial(
+        instructions_format=parser.get_format_instructions(),
+        reasoning_prompt=reasoning_prompt,
+    )
     # Chain configuration
     chain = prompt | model | parser
 
@@ -82,6 +103,8 @@ def evolutionTextAnalysis(
     def processRecord(record: dict):
         try:
             processedChain = chain.invoke({"evolution_text": record["evolution_text"]})
+            processedChain = processedChain.model_dump()
+
             # Validar resultados
             return {
                 "valid": validateResult(
@@ -94,14 +117,17 @@ def evolutionTextAnalysis(
                 },
             }
         except Exception as e:
+            errorOutput = {
+                "icd_code": None,
+                "principal_diagnostic": None,
+            }
+            if reasoningMode:
+                errorOutput["reasoning"] = None
+            errorOutput["error"] = str(e)
+
             return {
                 "valid": False,
-                "processedOutput": {
-                    "icd_code": None,
-                    "principal_diagnostic": None,
-                    **({"reasoning": None} if not reasoningMode else {}),
-                    "error": str(e),
-                },
+                "processedOutput": errorOutput,
                 "correctOutput": {
                     "principal_diagnostic": record["principal_diagnostic"],
                 },
