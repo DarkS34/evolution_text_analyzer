@@ -1,24 +1,20 @@
+import time
+
+from langchain.output_parsers import PydanticOutputParser
 from langchain.prompts import (
     ChatPromptTemplate,
-    SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
+    SystemMessagePromptTemplate,
 )
-from langchain.output_parsers import PydanticOutputParser
-from langchain_ollama.llms import OllamaLLM
 from langchain_core.runnables import RunnableLambda, RunnableParallel
-
+from langchain_ollama.llms import OllamaLLM
 from pydantic import BaseModel, Field
 
+from analyzer._validator import normalizeName, validateResult
 from analyzer.auxiliary_functions import printExecutionProgression
-from analyzer._validator import validateResult
-import time
 
 
 class DeseaseAnalysisBase(BaseModel):
-    icd_code: str = Field(
-        title="Código CIE enfermedad",
-        description="Código CIE de la enfermedad principal, basado en el historial del paciente",
-    )
     principal_diagnostic: str = Field(
         title="Nombre enfermedad",
         description="Nombre de la enfermedad principal, basado en el historial del paciente",
@@ -34,6 +30,7 @@ class DeseaseAnalysisWithReasoning(DeseaseAnalysisBase):
 def evolutionTextAnalysis(
     modelInfo: dict,
     medicalData: list,
+    diagToIcdMap: dict,
     numBatches: int,
     reasoningMode: bool,
     processedModels: int = 1,
@@ -50,7 +47,7 @@ def evolutionTextAnalysis(
         format="" if isReasoningModel else "json",
         seed=123,
     )
-    
+
     numBatches = min(numBatches, len(medicalData))
     dateFormat = "%H:%M:%S %d-%m-%Y"
 
@@ -62,13 +59,13 @@ def evolutionTextAnalysis(
     )
 
     reasoning_prompt = (
-        f"Además, debes proporcionar un breve razonamiento de 50 palabras sobre cómo llegaste a esa conclusión."
+        "Además, debes proporcionar un breve razonamiento de 50 palabras sobre cómo llegaste a esa conclusión."
         if reasoningMode
         else ""
     )
 
     system_template = """Eres un sistema médico especializado en el análisis de historiales médicos sobre enfermedades reumatológicas.
-    Tu tarea es identificar y extraer el nombre y el código CIE correspondiente a la enfermedad principal mencionada en el siguiente historial. {reasoning_prompt}
+    Tu tarea es identificar y extraer el nombre correspondiente a la enfermedad principal mencionada en el siguiente historial. {reasoning_prompt}
     
     Formato requerido para la respuesta:
     {instructions_format}"""
@@ -87,6 +84,7 @@ def evolutionTextAnalysis(
         instructions_format=parser.get_format_instructions(),
         reasoning_prompt=reasoning_prompt,
     )
+
     # Chain configuration
     chain = prompt | model | parser
 
@@ -96,6 +94,9 @@ def evolutionTextAnalysis(
             processedChain = chain.invoke({"evolution_text": record["evolution_text"]})
             processedChain = processedChain.model_dump()
 
+            processedChain["icd_code"] = diagToIcdMap.get(
+                normalizeName(processedChain["principal_diagnostic"]), "N/A"
+            )
             # Validar resultados
             return {
                 "valid": validateResult(
@@ -109,11 +110,12 @@ def evolutionTextAnalysis(
             }
         except Exception as e:
             errorOutput = {
-                "icd_code": None,
                 "principal_diagnostic": None,
+                "icd_code": None,
             }
             if reasoningMode:
                 errorOutput["reasoning"] = None
+                
             errorOutput["error"] = str(e)
 
             return {

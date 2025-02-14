@@ -1,14 +1,11 @@
-from pathlib import Path
-from argparse import ArgumentParser
-from pydantic import ByteSize
-
-import json
-import ollama
-import requests
 import os
-import pandas as pd
+from argparse import ArgumentParser
+from pathlib import Path
 
-# https://mediately.co/_next/data/ca334f6100043fcbd2d00ec1242b3b547e1f226a/es/icd.json?classificationCode=
+import ollama
+import pandas as pd
+import requests
+from pydantic import ByteSize
 
 
 def checkOllamaConnected(url="http://localhost:11434"):
@@ -68,20 +65,40 @@ def getEvolutionTexts(path: Path):
                     sep="|",
                     quotechar="'",
                     usecols=["ID", "principal_diagnostic", "evolution_text"],
-                ).to_dict(orient='records')
+                ).to_dict(orient="records")
             elif fileExtension == ".json":
-                evolutionTextsList = json.load(file)
+                evolutionTextsList = pd.read_json(file)
             else:
                 raise ValueError(
                     "Evolution Texts - Extension not supported. Extension must be: '.json', '.csv'"
                 )
     except FileNotFoundError:
         raise FileNotFoundError(f"File '{path}' not found")
-    
+
     for et in evolutionTextsList:
         et["evolution_text"] = et["evolution_text"].replace("\n", " ")
-        
+
     return evolutionTextsList
+
+
+def getIcdDataset(path: Path) -> dict:
+    icdList = {}
+    fileExtension = path.suffix
+    try:
+        with open(path, mode="r", encoding="utf-8") as file:
+            if fileExtension == ".csv":
+                df = pd.read_csv(file, quotechar='"', encoding="utf-8")
+                icdList = dict(zip(df["DIAGNOSTIC"], df["CODE"]))
+            elif fileExtension == ".json":
+                icdList = pd.read_json(file)
+            else:
+                raise ValueError(
+                    "ICD Dataset - Extension not supported. Extension must be: '.json', '.csv'"
+                )
+    except FileNotFoundError:
+        raise FileNotFoundError(f"File '{path}' not found")
+
+    return icdList
 
 
 def getModels(modelsListPath: Path, installedFlag: bool):
@@ -93,7 +110,7 @@ def getModels(modelsListPath: Path, installedFlag: bool):
 
         size = None
         if installedModelInfo and "size" in installedModelInfo:
-            size = f"{str(round(ByteSize(installedModelInfo['size']).to('GB'),1,))} GB"
+            size = f"{str(round(ByteSize(installedModelInfo['size']).to('GB'), 1))} GB"
 
         parameter_size = None
         if installedModelInfo and "details" in installedModelInfo:
@@ -121,7 +138,7 @@ def getModels(modelsListPath: Path, installedFlag: bool):
 
     try:
         with open(modelsListPath, mode="r", encoding="utf-8") as modelsListFile:
-            rawModelsList = json.load(modelsListFile)
+            rawModelsList = pd.read_json(modelsListFile, typ="series").to_list()
             installedModels = ollama.list()["models"]
             modelsList = [
                 _process_model_info(model, installedModels) for model in rawModelsList
@@ -133,7 +150,7 @@ def getModels(modelsListPath: Path, installedFlag: bool):
 
             return modelsList
 
-    except (json.JSONDecodeError, KeyError) as e:
+    except pd.errors as e:
         raise ValueError(f"Error while loading models: {e}")
 
 
@@ -197,16 +214,16 @@ def chooseModel(modelsListPath: Path, installedFlag: bool):
     detailsWidth = 15
 
     print(
-        f"{'ID'.rjust(4)} {'NAME'.ljust(modelNameWidth)}{'AVAILABLE'.ljust(installedWidth)}{"SIZE".ljust(detailsWidth-5)}{'PARAMETERS'.ljust(detailsWidth)}{'QUANTIZATION'.ljust(detailsWidth)}"
+        f"{'ID'.rjust(4)} {'NAME'.ljust(modelNameWidth)}{'AVAILABLE'.ljust(installedWidth)}{'SIZE'.ljust(detailsWidth - 5)}{'PARAMETERS'.ljust(detailsWidth)}{'QUANTIZATION'.ljust(detailsWidth)}"
     )
     for i, model in enumerate(modelsList, start=1):
         installedMsg = (
-            f"{'Installed'.ljust(installedWidth)}{model['size'].ljust(detailsWidth-5)}{model['parameterSize'].ljust(detailsWidth)}{model['quantizationLevel'].ljust(detailsWidth)}"
+            f"{'Installed'.ljust(installedWidth)}{model['size'].ljust(detailsWidth - 5)}{model['parameterSize'].ljust(detailsWidth)}{model['quantizationLevel'].ljust(detailsWidth)}"
             if model["installed"]
             else "Not installed"
         )
         print(
-            f"{(str(i)+'.').rjust(4)} {model['modelName'].ljust(modelNameWidth)}{installedMsg}"
+            f"{(str(i) + '.').rjust(4)} {model['modelName'].ljust(modelNameWidth)}{installedMsg}"
         )
 
     while True:
@@ -227,9 +244,9 @@ def printProcessedResults(results: dict):
     for id, processedETResult in results["evolutionTextsResults"].items():
         print(
             f"""
-        {id} - {processedETResult['valid']} {'-'*20}
-        Model result: {processedETResult['processedOutput'].get('principal_diagnostic')} ({processedETResult['processedOutput'].get('icd_code')})
-        Correct result: {processedETResult['correctOutput']['principal_diagnostic']}
+        {id} - {processedETResult["valid"]} {"-" * 20}
+        Model result: {processedETResult["processedOutput"].get("principal_diagnostic")} ({processedETResult["processedOutput"].get("icd_code")})
+        Correct result: {processedETResult["correctOutput"]["principal_diagnostic"]}
         """,
             (
                 f"Reasoning: {processedETResult['processedOutput'].get('reasoning')}\n"
@@ -245,15 +262,15 @@ def printProcessedResults(results: dict):
 
     print(
         f"""
-        Accuracy: {results['performance']['accuracy']}% ({int((results['performance']['accuracy']/100) * results['performance']['totalRecordsProcessed'])}/{results['performance']['totalRecordsProcessed']})
-        Incorrect outputs: {results['performance']['incorrectOutputs']}% ({int((results['performance']['incorrectOutputs']/100) * results['performance']['totalRecordsProcessed'])}/{results['performance']['totalRecordsProcessed']})
-        Errors: {results['performance']['errors']}% ({int((results['performance']['errors']/100) * results['performance']['totalRecordsProcessed'])}/{results['performance']['totalRecordsProcessed']})
-        Batches: {results['performance']['numBatches']}
-        Total records processed: {results['performance']['totalRecordsProcessed']}
+        Accuracy: {results["performance"]["accuracy"]}% ({int((results["performance"]["accuracy"] / 100) * results["performance"]["totalRecordsProcessed"])}/{results["performance"]["totalRecordsProcessed"]})
+        Incorrect outputs: {results["performance"]["incorrectOutputs"]}% ({int((results["performance"]["incorrectOutputs"] / 100) * results["performance"]["totalRecordsProcessed"])}/{results["performance"]["totalRecordsProcessed"]})
+        Errors: {results["performance"]["errors"]}% ({int((results["performance"]["errors"] / 100) * results["performance"]["totalRecordsProcessed"])}/{results["performance"]["totalRecordsProcessed"]})
+        Batches: {results["performance"]["numBatches"]}
+        Total records processed: {results["performance"]["totalRecordsProcessed"]}
          
-        Duration: {results['performance']['processingTime']['duration']} s.
-        Start time: {results['performance']['processingTime']['startDate']}
-        End time: {results['performance']['processingTime']['endDate']}
+        Duration: {results["performance"]["processingTime"]["duration"]} s.
+        Start time: {results["performance"]["processingTime"]["startDate"]}
+        End time: {results["performance"]["processingTime"]["endDate"]}
     """
     )
 
@@ -265,8 +282,8 @@ def updateResults(resultsDirPath: Path, partialResult: dict, modelsResults: list
 
 
 def writeProcessedResult(resultsPath: str, results: dict):
-    with open(resultsPath, "w") as f:
-        json.dump(results, f, indent=3)
+    df = pd.DataFrame(results)
+    df.to_json(resultsPath, indent=3, orient="records")
 
 
 def printExecutionProgression(
@@ -276,7 +293,7 @@ def printExecutionProgression(
     processedModels: int,
     totalModels: int,
 ):
-    print(f"\r{' '*os.get_terminal_size().columns}", end="", flush=True)
+    print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
     if totalModels == 1:
         print(
             f"\r{modelName} - Evolution texts processed {processedTexts}/{totalTexts}",
