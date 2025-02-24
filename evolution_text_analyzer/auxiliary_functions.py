@@ -1,15 +1,19 @@
-import os
-from argparse import ArgumentParser
-from pathlib import Path
+"""This is the example module.
 
+This module does stuff.
+"""
+from pathlib import Path
+from argparse import ArgumentParser
+from pydantic import ByteSize
+
+import os
 import ollama
 import pandas as pd
 import requests
-from pydantic import ByteSize
 import json
 
 
-def checkOllamaConnected(url="http://localhost:11434"):
+def check_ollama_connected(url="http://localhost:11434"):
     try:
         response = requests.get(url)
         if response.status_code == 200:
@@ -24,8 +28,9 @@ def checkOllamaConnected(url="http://localhost:11434"):
         return False
 
 
-def getArgs(numEvolutionTexts: int):
-    parser = ArgumentParser(description="Script for processing with labeled modes.")
+def get_args(numEvolutionTexts: int):
+    parser = ArgumentParser(
+        description="Script for processing with labeled modes.")
     parser.add_argument(
         "-mode",
         type=int,
@@ -62,7 +67,7 @@ def getArgs(numEvolutionTexts: int):
     return parser.parse_args()
 
 
-def getEvolutionTexts(path: Path):
+def get_evolution_texts(path: Path):
     evolutionTextsList = []
     fileExtension = path.suffix
     try:
@@ -88,24 +93,18 @@ def getEvolutionTexts(path: Path):
     return evolutionTextsList
 
 
-def getOptAnalyzerConfig(path: Path):
+def get_optimal_analyzer_configuration(path: Path) -> tuple[tuple[str, str], list[str], list[str], str]:
     if not path.exists():
         raise FileNotFoundError(f"File '{path}' not found")
-
     try:
         config = pd.read_json(path, typ="series")
     except ValueError:
         raise ValueError(f"Invalid JSON format in file '{path}'")
 
-    if not {"model_name", "system_prompt"}.issubset(config.index):
-        raise KeyError(
-            "Missing required keys: 'model_name' or 'system_prompt' in JSON file"
-        )
-
-    return config["model_name"], config["system_prompt"]
+    return ((config["opt_model_name"], config["opt_system_prompt"]), config["models"], config["system_prompts"], config["output_formatting"])
 
 
-# def getIcdDataset(path: Path) -> dict:
+# def get_ICD_dataset(path: Path) -> dict:
 #     icdList = {}
 #     fileExtension = path.suffix
 #     try:
@@ -125,147 +124,140 @@ def getOptAnalyzerConfig(path: Path):
 #     return icdList
 
 
-def getListedModels(modelsListPath: Path, installedFlag: bool):
-    def _process_model_info(rawModel, installedModels):
-        installedModelInfo = next(
-            (model for model in installedModels if model["model"] == rawModel),
-            None,
-        )
+def _process_model_info(raw_model: str, installed_models: list[dict]) -> dict:
+    """Process raw model data into a structured dictionary."""
+    installed_info = next(
+        (m for m in installed_models if m["model"] == raw_model),
+        None
+    )
 
-        size = None
-        if installedModelInfo and "size" in installedModelInfo:
-            size = f"{str(round(ByteSize(installedModelInfo['size']).to('GB'), 1))} GB"
+    size = None
+    parameter_size = None
+    quantization_level = None
 
-        parameter_size = None
-        if installedModelInfo and "details" in installedModelInfo:
-            parameter_size = installedModelInfo["details"].get("parameter_size")
+    if installed_info:
+        size = (f"{round(ByteSize(installed_info.get('size', 0)).to('GB'), 1)} GB"
+                if "size" in installed_info else None)
+        details = installed_info.get("details", {})
+        parameter_size = details.get("parameter_size")
+        quantization_level = details.get("quantization_level")
 
-        quantization_level = None
-        if installedModelInfo and "details" in installedModelInfo:
-            quantization_level = installedModelInfo["details"].get("quantization_level")
+    return {
+        "modelName": raw_model,
+        "installed": bool(installed_info),
+        "size": size,
+        "parameterSize": parameter_size,
+        "quantizationLevel": quantization_level
+    }
 
-        return {
-            "modelName": rawModel,
-            "installed": installedModelInfo is not None,
-            "size": size,
-            "parameterSize": parameter_size,
-            "quantizationLevel": quantization_level,
-        }
 
-    if not modelsListPath.is_file():
-        raise FileNotFoundError(f"File does not exist in: {modelsListPath}")
-
-    if modelsListPath.suffix != ".json":
-        raise ValueError(
-            "List of models - Extension not supported. Extension must be: '.json'"
-        )
-
+def get_listed_models(rawModels, installed_only: bool = False) -> list[dict]:
+    """Retrieve and process model list from JSON file."""
     try:
-        with open(modelsListPath, mode="r", encoding="utf-8") as modelsListFile:
-            rawModelsList = pd.read_json(modelsListFile, typ="series").to_list()
-            installedModels = ollama.list()["models"]
-            modelsList = [
-                _process_model_info(model, installedModels) for model in rawModelsList
-            ]
-            if not modelsList:
-                raise ValueError("No models to use.")
-            if installedFlag:
-                modelsList = [model for model in modelsList if model["installed"]]
+        if not rawModels:
+            raise ValueError("No models found in the list")
 
-            return modelsList
+        installed_models = ollama.list()["models"]
+        models = [_process_model_info(model, installed_models)
+                  for model in rawModels]
 
-    except pd.errors as e:
-        raise ValueError(f"Error while loading models: {e}")
+        return [m for m in models if m["installed"]] if installed_only else models
+
+    except pd.errors.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON format in models list: {e}")
 
 
-def downloadModel(model: dict):
-    success = False
+def download_model(model: dict) -> bool:
+    """Download a model and update its metadata."""
     try:
         print(f"\rDownloading: '{model['modelName']}'", end="")
         ollama.pull(model["modelName"])
-        success = True
-    except (ollama.ResponseError, requests.RequestException) as e:
-        print(f"Error: {e}")
-        success = False
-    finally:
-        installedModelInfo = next(
-            (
-                installedModel
-                for installedModel in ollama.list()["models"]
-                if installedModel["model"] == model["modelName"]
-            ),
-            None,
+
+        # Update model info after successful download
+        installed_info = next(
+            (m for m in ollama.list()["models"]
+             if m["model"] == model["modelName"]),
+            None
         )
-        if installedModelInfo:
-            if not model.get("size"):
-                model.update(
-                    {
-                        "size": str(
-                            round(ByteSize(installedModelInfo["size"]).to("GB"), 1)
-                        )
-                        + " GB"
-                    }
-                )
-            if not model.get("parameterSize"):
-                model.update(
-                    {"parameterSize": installedModelInfo["details"]["parameter_size"]}
-                )
-            if not model.get("quantizationLevel"):
-                model.update(
-                    {
-                        "quantizationLevel": installedModelInfo["details"][
-                            "quantization_level"
-                        ]
-                    }
-                )
-            model.pop("installed")
-            success = True
 
-    return success
+        if installed_info:
+            model.update({
+                "size": f"{round(ByteSize(installed_info['size']).to('GB'), 1)} GB",
+                "parameterSize": installed_info["details"]["parameter_size"],
+                "quantizationLevel": installed_info["details"]["quantization_level"]
+            })
+            model.pop("installed", None)
+            return True
+
+        return False
+
+    except (ollama.ResponseError, requests.RequestException) as e:
+        print(f"\nDownload failed: {e}")
+        return False
 
 
-def checkModel(model: dict):
+def check_model(model: dict) -> bool:
+    """Check if model is installed and download if necessary."""
     if not model["installed"]:
-        return downloadModel(model)
-    model.pop("installed")
+        return download_model(model)
+    model.pop("installed", None)
     return True
 
 
-def chooseModel(modelsListPath: Path, installedFlag: bool):
-    modelsList = getListedModels(modelsListPath, installedFlag)
-    modelNameWidth = max(len(model["modelName"]) for model in modelsList) + 4
-    installedWidth = len("Not installed") + 4
-    detailsWidth = 15
+def display_model_table(models: list[dict]) -> None:
+    """Display models in a formatted table."""
+    col_widths = {
+        "name": max(len(m["modelName"]) for m in models) + 4,
+        "available": len("Not installed") + 4,
+        "details": 15
+    }
 
-    print(
-        f"{'ID'.rjust(4)} {'NAME'.ljust(modelNameWidth)}{'AVAILABLE'.ljust(installedWidth)}{'SIZE'.ljust(detailsWidth - 5)}{'PARAMETERS'.ljust(detailsWidth)}{'QUANTIZATION'.ljust(detailsWidth)}"
+    header = (
+        f"{'ID'.rjust(4)}  "
+        f"{'NAME'.ljust(col_widths['name'])}"
+        f"{'AVAILABLE'.ljust(col_widths['available'])}"
+        f"{'SIZE'.ljust(col_widths['details']-5)}"
+        f"{'PARAMETERS'.ljust(col_widths['details'])}"
+        f"{'QUANTIZATION'.ljust(col_widths['details'])}"
     )
-    for i, model in enumerate(modelsList, start=1):
-        installedMsg = (
-            f"{'Installed'.ljust(installedWidth)}{model['size'].ljust(detailsWidth - 5)}{model['parameterSize'].ljust(detailsWidth)}{model['quantizationLevel'].ljust(detailsWidth)}"
-            if model["installed"]
-            else "Not installed"
-        )
+    print(header)
+
+    for i, model in enumerate(models, 1):
+        details = (
+            f"{'Installed'.ljust(col_widths['available'])}"
+            f"{(model['size'] or '').ljust(col_widths['details']-5)}"
+            f"{(model['parameterSize'] or '').ljust(col_widths['details'])}"
+            f"{(model['quantizationLevel'] or '').ljust(col_widths['details'])}"
+        ) if model["installed"] else "Not installed"
+
         print(
-            f"{(str(i) + '.').rjust(4)} {model['modelName'].ljust(modelNameWidth)}{installedMsg}"
-        )
+            f"{str(i).rjust(4)}. {model['modelName'].ljust(col_widths['name'])}{details}")
 
-    while True:
-        j = input(f"\nSelect model (1 - {len(modelsList)}): ")
-        if j.isnumeric():
-            j = int(j) - 1
-            if j in range(0, len(modelsList)):
-                break
 
-    choosenModel = modelsList[j]
-    if checkModel(choosenModel):
-        return choosenModel
-    else:
+def choose_model(models, installed_only: bool = False) -> dict | None:
+    """Interactive model selection interface."""
+    try:
+        models = get_listed_models(models, installed_only)
+        if not models:
+            print("No models available to choose from.")
+            return None
+
+        display_model_table(models)
+
+        while True:
+            choice = input(f"\nSelect model (1 - {len(models)}): ").strip()
+            if choice.isnumeric() and 1 <= int(choice) <= len(models):
+                selected_model = models[int(choice) - 1]
+                return [selected_model] if check_model(selected_model) else None
+            print("Invalid selection. Please try again.")
+
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Error: {e}")
         return None
 
 
-def printEvaluatedResults(results: dict):
-    for id,eet in results["evaluatedEvolutionTexts"].items():
+def print_evaluated_results(results: dict):
+    for id, eet in results["evaluatedEvolutionTexts"].items():
         print(
             f"""
         {id} - {eet["valid"]} {"-" * 20}
@@ -299,18 +291,20 @@ def printEvaluatedResults(results: dict):
     )
 
 
-def updateResults(resultsDirPath: Path, partialResult: dict, modelsResults: list):
+def update_results(resultsDirPath: Path, partialResult: dict, modelsResults: list):
     modelsResults.append(partialResult)
-    modelsResults.sort(key=lambda x: x["performance"]["accuracy"], reverse=True)
-    writeResults(resultsDirPath / "results_allListedModels.json", modelsResults)
+    modelsResults.sort(
+        key=lambda x: x["performance"]["accuracy"], reverse=True)
+    write_results(resultsDirPath /
+                  "results_allListedModels.json", modelsResults)
 
 
-def writeResults(resultsPath: str, results: dict):
+def write_results(resultsPath: str, results: dict):
     with open(resultsPath, mode="w", encoding="utf-8") as file:
         json.dump(results, file, indent=3, ensure_ascii=False)
-    
 
-def printExecutionProgression(
+
+def print_execution_progression(
     modelName: str,
     processedTexts: int,
     totalTexts: int,

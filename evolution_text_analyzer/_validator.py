@@ -1,3 +1,8 @@
+"""This is the example module.
+
+This module does stuff.
+"""
+
 import unicodedata
 
 extendedDiagMap = {
@@ -35,15 +40,15 @@ extendedDiagMap = {
 }
 
 
-def normalizeName(name: str) -> str:
+def normalize_name(name: str) -> str:
     newName = extendedDiagMap.get(name, name)
     return "".join(
         c for c in unicodedata.normalize("NFKD", newName) if not unicodedata.combining(c)
     ).lower()
 
 
-def validateResult(processedDiag: str, correctDiag: str):
-    processedDiagNorm = normalizeName(processedDiag)
-    correctDiagNorm = normalizeName(correctDiag)
+def validate_result(processedDiag: str, correctDiag: str):
+    processedDiagNorm = normalize_name(processedDiag)
+    correctDiagNorm = normalize_name(correctDiag)
 
     return (processedDiagNorm == correctDiagNorm) or processedDiagNorm.find(correctDiagNorm) != -1 or correctDiagNorm.find(processedDiagNorm) != -1

@@ -4,11 +4,12 @@ from langchain.prompts import (
     HumanMessagePromptTemplate,
     SystemMessagePromptTemplate,
 )
-from langchain_core.runnables import RunnableLambda, RunnableParallel
-from langchain_ollama.llms import OllamaLLM
+from langchain_core.runnables import Runnable, RunnableParallel, RunnableLambda
 from pydantic import BaseModel, Field
+from transformers import pipeline
+import torch
 
-from scripts.auxiliary_functions import printExecutionProgression
+from evolution_text_analyzer.auxiliary_functions import printExecutionProgression
 
 
 class EvolutionTextDiagnostic(BaseModel):
@@ -26,6 +27,38 @@ class EvolutionTextDiagnostic(BaseModel):
     )
 
 
+class HuggingFaceLLM(Runnable):
+    def __init__(self, model_name: str):
+        self.pipe = pipeline(
+            task="text-generation",
+            model=model_name,
+            device=0 if torch.cuda.is_available() else -1,  # Usa GPU si está disponible
+            model_kwargs={"torch_dtype": torch.float16},
+            trust_remote_code=True,
+        )
+
+    def invoke(self, input, config=None):
+        try:
+            # Convertir el input (ChatPromptTemplate renderizado) a string
+            if hasattr(input, "messages"):
+                prompt = "\n".join([msg.content for msg in input.messages])
+            else:
+                prompt = str(input)
+
+            # Generar respuesta del modelo
+            response = self.pipe(
+                prompt,
+                max_new_tokens=512,
+                temperature=0.1,
+                top_p=0.9,
+                do_sample=True,
+                return_full_text=False,
+            )
+            return response[0]["generated_text"]
+        except Exception as e:
+            raise Exception(f"Error en la generación del texto: {str(e)}")
+
+
 def evolutionTextAnalysis(
     modelName: str,
     evolutionTexts: list,
@@ -33,15 +66,8 @@ def evolutionTextAnalysis(
     systemPrompt: str,
     totalEvolutionTextsToProcess: int,
 ):
-    model = OllamaLLM(
-        model=modelName,
-        temperature=0,
-        num_ctx=8192,
-        top_p=0.9,
-        verbose=False,
-        format="json",
-        seed=123,
-    )
+    # Model
+    model = HuggingFaceLLM(modelName)
 
     totalEvolutionTextsToProcess = min(
         totalEvolutionTextsToProcess, len(evolutionTexts)
@@ -71,7 +97,7 @@ def evolutionTextAnalysis(
             return processedChain.model_dump()
         except Exception as e:
             return {
-                "principla_diagnostic": None,
+                "principal_diagnostic": None,
                 "icd_code": None,
                 "processing_error": str(e),
             }

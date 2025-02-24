@@ -4,12 +4,11 @@ from langchain.prompts import (
     HumanMessagePromptTemplate,
     SystemMessagePromptTemplate,
 )
-from langchain_core.runnables import Runnable, RunnableParallel, RunnableLambda
+from langchain_core.runnables import RunnableLambda, RunnableParallel
+from langchain_ollama.llms import OllamaLLM
 from pydantic import BaseModel, Field
-from transformers import pipeline
-import torch
 
-from scripts.auxiliary_functions import printExecutionProgression
+from .auxiliary_functions import print_execution_progression
 
 
 class EvolutionTextDiagnostic(BaseModel):
@@ -27,47 +26,22 @@ class EvolutionTextDiagnostic(BaseModel):
     )
 
 
-class HuggingFaceLLM(Runnable):
-    def __init__(self, model_name: str):
-        self.pipe = pipeline(
-            task="text-generation",
-            model=model_name,
-            device=0 if torch.cuda.is_available() else -1,  # Usa GPU si está disponible
-            model_kwargs={"torch_dtype": torch.float16},
-            trust_remote_code=True,
-        )
-
-    def invoke(self, input, config=None):
-        try:
-            # Convertir el input (ChatPromptTemplate renderizado) a string
-            if hasattr(input, "messages"):
-                prompt = "\n".join([msg.content for msg in input.messages])
-            else:
-                prompt = str(input)
-
-            # Generar respuesta del modelo
-            response = self.pipe(
-                prompt,
-                max_new_tokens=512,
-                temperature=0.1,
-                top_p=0.9,
-                do_sample=True,
-                return_full_text=False,
-            )
-            return response[0]["generated_text"]
-        except Exception as e:
-            raise Exception(f"Error en la generación del texto: {str(e)}")
-
-
 def evolutionTextAnalysis(
     modelName: str,
     evolutionTexts: list,
-    numBatches: int,
     systemPrompt: str,
+    numBatches: int,
     totalEvolutionTextsToProcess: int,
 ):
-    # Model
-    model = HuggingFaceLLM(modelName)
+    model = OllamaLLM(
+        model=modelName,
+        temperature=0,
+        num_ctx=8192,
+        top_p=0.9,
+        verbose=False,
+        format="json",
+        seed=123,
+    )
 
     totalEvolutionTextsToProcess = min(
         totalEvolutionTextsToProcess, len(evolutionTexts)
@@ -91,13 +65,13 @@ def evolutionTextAnalysis(
     chain = prompt | model | parser
 
     # Función para procesar un registro
-    def processEvolutionText(evolutionText: dict):
+    def process_evolution_text(evolutionText: dict):
         try:
             processedChain: BaseModel = chain.invoke({"evolution_text": evolutionText})
             return processedChain.model_dump()
         except Exception as e:
             return {
-                "principal_diagnostic": None,
+                "principla_diagnostic": None,
                 "icd_code": None,
                 "processing_error": str(e),
             }
@@ -107,7 +81,7 @@ def evolutionTextAnalysis(
     # Process batches
     for start in range(0, totalEvolutionTextsToProcess, numBatches):
         # Print progress once before processing
-        printExecutionProgression(
+        print_execution_progression(
             modelName,
             len(processedEvolutionTexts),
             totalEvolutionTextsToProcess,
@@ -119,7 +93,7 @@ def evolutionTextAnalysis(
         parallelRunner = RunnableParallel(
             {
                 str(item["id"]): RunnableLambda(
-                    lambda x, i=i: processEvolutionText(x[i]["evolution_text"])
+                    lambda x, i=i: process_evolution_text(x[i]["evolution_text"])
                 )
                 for i, item in enumerate(batch)
             }
