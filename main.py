@@ -1,52 +1,69 @@
 from pathlib import Path
-from analyzer.auxiliary_functions import (
+from scripts.auxiliary_functions import (
     checkOllamaConnected,
     getArgs,
     getEvolutionTexts,
-    getIcdDataset,
-    getModels,
-    checkModel,
     chooseModel,
-    updateResults,
-    printProcessedResults,
-    writeProcessedResult,
+    getListedModels,
+    getOptAnalyzerConfig,
+    writeResults,
+    printEvaluatedResults,
 )
 
-# from analyzer.parallel_ollama_et_analyzer import evolutionTextAnalysis
-from analyzer.parallel_ollama_et_analyzer_cie import evolutionTextAnalysis
+from scripts.analyzer import evolutionTextAnalysis
+from scripts.llm_tester import evaluateLLM, evaluateListedLLMs
 
 if __name__ == "__main__" and checkOllamaConnected():
-    args = getArgs()
-    EVOLUTION_TEXTS_FILENAME = Path(__file__).parent / "historiales_resueltos.csv"
-    ICD_DATASET_FILENAME = Path(__file__).parent / "dataset.csv"
+    EVOLUTION_TEXTS_FILENAME = Path(__file__).parent / "evolution_texts_resolved.csv"
+    CONFIG_FILENAME = Path(__file__).parent / "config.json"
     MODELS_LIST_FILENAME = Path(__file__).parent / "models.json"
-    results_dir = Path(__file__).parent / "results"
-    results_dir.mkdir(parents=True, exist_ok=True)
+    testingResultsDir = Path(__file__).parent / "testing_results"
+    testingResultsDir.mkdir(parents=True, exist_ok=True)
+    resultsDir = Path(__file__).parent / "results"
+    resultsDir.mkdir(parents=True, exist_ok=True)
 
-    medicalData = getEvolutionTexts(EVOLUTION_TEXTS_FILENAME)
-    diagToIcdMap = getIcdDataset(ICD_DATASET_FILENAME)
+    evolutionTexts = getEvolutionTexts(EVOLUTION_TEXTS_FILENAME)
 
-    match args.mode:
-        case 1:
-            models = getModels(MODELS_LIST_FILENAME, args.installed)
-            modelsResults = []
-            for mIdx, model in enumerate(models):
-                if checkModel(model):
-                    partialResults = evolutionTextAnalysis(
-                        model, medicalData, diagToIcdMap, args.batches, args.reason, mIdx, len(models)
-                    )
-                    updateResults(results_dir, partialResults, modelsResults)
-        case 2:
-            model = chooseModel(MODELS_LIST_FILENAME, args.installed)
-            if model:
-                # results = evolutionTextAnalysis(model, medicalData, args.batches)
-                results = evolutionTextAnalysis(
-                    model, medicalData, diagToIcdMap, args.batches, args.reason
+    args = getArgs(len(evolutionTexts))
+    if not args.test:
+        match args.mode:
+            case 1:
+                _, systemPrompt = getOptAnalyzerConfig(CONFIG_FILENAME)
+                evaluateListedLLMs(
+                    getListedModels(MODELS_LIST_FILENAME, args.installed),
+                    evolutionTexts,
+                    args.batches,
+                    systemPrompt,
+                    args.num_texts,
+                    testingResultsDir,
                 )
-                printProcessedResults(results)
-                writeProcessedResult(
-                    results_dir / f"results_{model["modelName"].split(":")[0]}.json",
+            case 2:
+                model = chooseModel(MODELS_LIST_FILENAME, args.installed)
+                _, systemPrompt = getOptAnalyzerConfig(CONFIG_FILENAME)
+                results = evaluateLLM(
+                    model,
+                    evolutionTexts,
+                    args.batches,
+                    systemPrompt,
+                    args.num_texts,
+                )
+
+                printEvaluatedResults(results)
+                writeResults(
+                    testingResultsDir
+                    / f"results_{model['modelName'].replace(':', '_')}.json",
                     results,
                 )
-        case _:
-            print("Modo no disponible")
+            case _:
+                print("Modo no disponible")
+    else:
+        modelName, systemPrompt = getOptAnalyzerConfig(CONFIG_FILENAME)
+        # if checkModel(modelName)
+        results = evolutionTextAnalysis(
+            modelName,
+            evolutionTexts,
+            args.batches,
+            systemPrompt,
+            args.num_texts,
+        )
+        writeResults(resultsDir / "processed_evolution_texts.json", results)

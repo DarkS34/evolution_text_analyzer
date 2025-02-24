@@ -6,6 +6,7 @@ import ollama
 import pandas as pd
 import requests
 from pydantic import ByteSize
+import json
 
 
 def checkOllamaConnected(url="http://localhost:11434"):
@@ -23,7 +24,7 @@ def checkOllamaConnected(url="http://localhost:11434"):
         return False
 
 
-def getArgs():
+def getArgs(numEvolutionTexts: int):
     parser = ArgumentParser(description="Script for processing with labeled modes.")
     parser.add_argument(
         "-mode",
@@ -41,14 +42,21 @@ def getArgs():
         help="Number of batches for parallel evolution texts processing (5-20, default: 5)",
     )
     parser.add_argument(
+        "--num-texts",
+        type=int,
+        default=numEvolutionTexts,
+        required=False,
+        help="Number of evolution texts to process (default: 2)",
+    )
+    parser.add_argument(
+        "-test",
+        action="store_true",
+        help="Test mode (default: False)",
+    )
+    parser.add_argument(
         "-installed",
         action="store_true",
         help="Use only installed models (default: False)",
-    )
-    parser.add_argument(
-        "-reason",
-        action="store_true",
-        help="Models reason the result for each processed evolution text (default: False)",
     )
 
     return parser.parse_args()
@@ -64,7 +72,6 @@ def getEvolutionTexts(path: Path):
                     file,
                     sep="|",
                     quotechar="'",
-                    usecols=["ID", "principal_diagnostic", "evolution_text"],
                 ).to_dict(orient="records")
             elif fileExtension == ".json":
                 evolutionTextsList = pd.read_json(file)
@@ -81,27 +88,44 @@ def getEvolutionTexts(path: Path):
     return evolutionTextsList
 
 
-def getIcdDataset(path: Path) -> dict:
-    icdList = {}
-    fileExtension = path.suffix
-    try:
-        with open(path, mode="r", encoding="utf-8") as file:
-            if fileExtension == ".csv":
-                df = pd.read_csv(file, quotechar='"', encoding="utf-8")
-                icdList = dict(zip(df["DIAGNOSTIC"], df["CODE"]))
-            elif fileExtension == ".json":
-                icdList = pd.read_json(file)
-            else:
-                raise ValueError(
-                    "ICD Dataset - Extension not supported. Extension must be: '.json', '.csv'"
-                )
-    except FileNotFoundError:
+def getOptAnalyzerConfig(path: Path):
+    if not path.exists():
         raise FileNotFoundError(f"File '{path}' not found")
 
-    return icdList
+    try:
+        config = pd.read_json(path, typ="series")
+    except ValueError:
+        raise ValueError(f"Invalid JSON format in file '{path}'")
+
+    if not {"model_name", "system_prompt"}.issubset(config.index):
+        raise KeyError(
+            "Missing required keys: 'model_name' or 'system_prompt' in JSON file"
+        )
+
+    return config["model_name"], config["system_prompt"]
 
 
-def getModels(modelsListPath: Path, installedFlag: bool):
+# def getIcdDataset(path: Path) -> dict:
+#     icdList = {}
+#     fileExtension = path.suffix
+#     try:
+#         with open(path, mode="r", encoding="utf-8") as file:
+#             if fileExtension == ".csv":
+#                 df = pd.read_csv(file, quotechar='"', encoding="utf-8")
+#                 icdList = dict(zip(df["DIAGNOSTIC"], df["CODE"]))
+#             elif fileExtension == ".json":
+#                 icdList = pd.read_json(file)
+#             else:
+#                 raise ValueError(
+#                     "ICD Dataset - Extension not supported. Extension must be: '.json', '.csv'"
+#                 )
+#     except FileNotFoundError:
+#         raise FileNotFoundError(f"File '{path}' not found")
+
+#     return icdList
+
+
+def getListedModels(modelsListPath: Path, installedFlag: bool):
     def _process_model_info(rawModel, installedModels):
         installedModelInfo = next(
             (model for model in installedModels if model["model"] == rawModel),
@@ -208,7 +232,7 @@ def checkModel(model: dict):
 
 
 def chooseModel(modelsListPath: Path, installedFlag: bool):
-    modelsList = getModels(modelsListPath, installedFlag)
+    modelsList = getListedModels(modelsListPath, installedFlag)
     modelNameWidth = max(len(model["modelName"]) for model in modelsList) + 4
     installedWidth = len("Not installed") + 4
     detailsWidth = 15
@@ -240,37 +264,37 @@ def chooseModel(modelsListPath: Path, installedFlag: bool):
         return None
 
 
-def printProcessedResults(results: dict):
-    for id, processedETResult in results["evolutionTextsResults"].items():
+def printEvaluatedResults(results: dict):
+    for id,eet in results["evaluatedEvolutionTexts"].items():
         print(
             f"""
-        {id} - {processedETResult["valid"]} {"-" * 20}
-        Model result: {processedETResult["processedOutput"].get("principal_diagnostic")} ({processedETResult["processedOutput"].get("icd_code")})
-        Correct result: {processedETResult["correctOutput"]["principal_diagnostic"]}
+        {id} - {eet["valid"]} {"-" * 20}
+        Model result: {eet["processedOutput"].get("principal_diagnostic")} ({eet["processedOutput"].get("icd_code")})
+        Correct result: {eet["correctOutput"]["principal_diagnostic"]}
         """,
             (
-                f"Reasoning: {processedETResult['processedOutput'].get('reasoning')}\n"
-                if processedETResult["processedOutput"].get("reasoning")
+                f"Error: {eet['processedOutput'].get('processing_error')}\n"
+                if eet["processedOutput"].get("processing_error")
                 else ""
             ),
             (
-                f"Error: {processedETResult['processedOutput'].get('error')}\n"
-                if processedETResult["processedOutput"].get("error")
+                f"Error: {eet['processedOutput'].get('validation_error')}\n"
+                if eet["processedOutput"].get("validation_error")
                 else ""
             ),
         )
 
     print(
         f"""
-        Accuracy: {results["performance"]["accuracy"]}% ({int((results["performance"]["accuracy"] / 100) * results["performance"]["totalRecordsProcessed"])}/{results["performance"]["totalRecordsProcessed"]})
-        Incorrect outputs: {results["performance"]["incorrectOutputs"]}% ({int((results["performance"]["incorrectOutputs"] / 100) * results["performance"]["totalRecordsProcessed"])}/{results["performance"]["totalRecordsProcessed"]})
-        Errors: {results["performance"]["errors"]}% ({int((results["performance"]["errors"] / 100) * results["performance"]["totalRecordsProcessed"])}/{results["performance"]["totalRecordsProcessed"]})
+        Accuracy: {results["performance"]["accuracy"]}% ({int((results["performance"]["accuracy"] / 100) * results["performance"]["totalETProcessed"])}/{results["performance"]["totalETProcessed"]})
+        Incorrect outputs: {results["performance"]["incorrectOutputs"]}% ({int((results["performance"]["incorrectOutputs"] / 100) * results["performance"]["totalETProcessed"])}/{results["performance"]["totalETProcessed"]})
+        Errors: {results["performance"]["errors"]}% ({int((results["performance"]["errors"] / 100) * results["performance"]["totalETProcessed"])}/{results["performance"]["totalETProcessed"]})
         Batches: {results["performance"]["numBatches"]}
-        Total records processed: {results["performance"]["totalRecordsProcessed"]}
+        Total records processed: {results["performance"]["totalETProcessed"]}
          
         Duration: {results["performance"]["processingTime"]["duration"]} s.
-        Start time: {results["performance"]["processingTime"]["startDate"]}
-        End time: {results["performance"]["processingTime"]["endDate"]}
+        Start time: {results["performance"]["processingTime"]["startDateTime"]}
+        End time: {results["performance"]["processingTime"]["endDateTime"]}
     """
     )
 
@@ -278,20 +302,20 @@ def printProcessedResults(results: dict):
 def updateResults(resultsDirPath: Path, partialResult: dict, modelsResults: list):
     modelsResults.append(partialResult)
     modelsResults.sort(key=lambda x: x["performance"]["accuracy"], reverse=True)
-    writeProcessedResult(resultsDirPath / "results_allListedModels.json", modelsResults)
+    writeResults(resultsDirPath / "results_allListedModels.json", modelsResults)
 
 
-def writeProcessedResult(resultsPath: str, results: dict):
-    df = pd.DataFrame(results)
-    df.to_json(resultsPath, indent=3, orient="records")
-
+def writeResults(resultsPath: str, results: dict):
+    with open(resultsPath, mode="w", encoding="utf-8") as file:
+        json.dump(results, file, indent=3, ensure_ascii=False)
+    
 
 def printExecutionProgression(
     modelName: str,
     processedTexts: int,
     totalTexts: int,
-    processedModels: int,
-    totalModels: int,
+    processedModels: int = 1,
+    totalModels: int = 1,
 ):
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
     if totalModels == 1:
