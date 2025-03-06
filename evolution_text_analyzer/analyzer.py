@@ -26,7 +26,7 @@ class EvolutionTextDiagnostic(BaseModel):
     )
 
 
-def evolutionTextAnalysis(
+def evolution_text_analysis(
     modelName: str,
     evolutionTexts: list,
     systemPrompt: str,

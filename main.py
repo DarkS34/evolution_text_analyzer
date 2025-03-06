@@ -9,8 +9,8 @@ from evolution_text_analyzer.auxiliary_functions import (
     write_results
 )
 
-from evolution_text_analyzer.analyzer import evolutionTextAnalysis
-from evolution_text_analyzer.llm_tester import evaluateAnalysis
+from evolution_text_analyzer.analyzer import evolution_text_analysis
+from evolution_text_analyzer.llm_tester import evaluate_analysis
 
 if __name__ == "__main__" and check_ollama_connected():
     EVOLUTION_TEXTS_FILENAME = Path(
@@ -25,13 +25,14 @@ if __name__ == "__main__" and check_ollama_connected():
     evolutionTexts = get_evolution_texts(EVOLUTION_TEXTS_FILENAME)
 
     args = get_args(len(evolutionTexts))
-    if args.test:
+    if args.test or args.test_prompts:
         _, models, systemPrompts, outputFormatting = get_optimal_analyzer_configuration(CONFIG_FILENAME)
-        evaluateAnalysis(
+        evaluate_analysis(
             get_listed_models(models, args.installed) if args.mode == 1 else choose_model(
                 models, args.installed),
             evolutionTexts,
-            systemPrompts[0]+outputFormatting,
+            systemPrompts if args.test_prompts else [systemPrompts[0]],
+            outputFormatting,
             args.batches,
             args.num_texts,
             testingResultsDir,
@@ -39,8 +40,7 @@ if __name__ == "__main__" and check_ollama_connected():
     else:
         opt, models, systemPrompts, outputFormatting = get_optimal_analyzer_configuration(
             CONFIG_FILENAME)
-        # if checkModel(modelName)
-        results = evolutionTextAnalysis(
+        results = evolution_text_analysis(
             models[opt[0]],
             evolutionTexts,
             systemPrompts[opt[1]]+outputFormatting,

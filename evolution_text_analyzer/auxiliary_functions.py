@@ -63,6 +63,11 @@ def get_args(numEvolutionTexts: int):
         action="store_true",
         help="Use only installed models (default: False)",
     )
+    parser.add_argument(
+        "--test-prompts",
+        action="store_true",
+        help="Use all system prompts for testing (default: False)",
+    )
 
     return parser.parse_args()
 
@@ -291,12 +296,11 @@ def print_evaluated_results(results: dict):
     )
 
 
-def update_results(resultsDirPath: Path, partialResult: dict, modelsResults: list):
+def update_results(resultsPath: Path, partialResult: dict, modelsResults: list):
     modelsResults.append(partialResult)
     modelsResults.sort(
         key=lambda x: x["performance"]["accuracy"], reverse=True)
-    write_results(resultsDirPath /
-                  "results_allListedModels.json", modelsResults)
+    write_results(resultsPath, modelsResults)
 
 
 def write_results(resultsPath: str, results: dict):
