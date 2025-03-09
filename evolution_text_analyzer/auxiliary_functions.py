@@ -30,42 +30,48 @@ def check_ollama_connected(url="http://localhost:11434"):
 
 def get_args(numEvolutionTexts: int):
     parser = ArgumentParser(
-        description="Script for processing with labeled modes.")
+        description="Script for processing with labeled modes.", allow_abbrev=False)
     parser.add_argument(
-        "-mode",
+        "-m", "--mode",
         type=int,
         default=1,
         required=False,
         choices=[1, 2],
+        dest="mode",
         help="Operation mode (1 or 2)",
     )
     parser.add_argument(
-        "-batches",
+        "-b", "--batches",
         type=int,
-        default=2,
+        default=1,
         required=False,
-        help="Number of batches for parallel evolution texts processing (5-20, default: 5)",
+        dest="numBatches",
+        help="Number of batches for parallel evolution texts processing (default: 1)",
     )
     parser.add_argument(
-        "--num-texts",
+        "-n", "--num-texts",
         type=int,
         default=numEvolutionTexts,
         required=False,
+        dest="numEvolutionTexts",
         help="Number of evolution texts to process (default: 2)",
     )
     parser.add_argument(
-        "-test",
+        "-t", "-test",
         action="store_true",
+        dest="test",
         help="Test mode (default: False)",
     )
     parser.add_argument(
-        "-installed",
+        "-i", "-installed",
         action="store_true",
+        dest="onlyInstalledModels",
         help="Use only installed models (default: False)",
     )
     parser.add_argument(
-        "--test-prompts",
+        "-p","--test-prompts",
         action="store_true",
+        dest="testPrompts",
         help="Use all system prompts for testing (default: False)",
     )
 
@@ -98,35 +104,16 @@ def get_evolution_texts(path: Path):
     return evolutionTextsList
 
 
-def get_optimal_analyzer_configuration(path: Path) -> tuple[tuple[str, str], list[str], list[str], str]:
+def get_analyzer_configuration(path: Path) -> tuple[tuple[str, str], list[str], list[str], str]:
     if not path.exists():
         raise FileNotFoundError(f"File '{path}' not found")
     try:
         config = pd.read_json(path, typ="series")
+        config = config.to_dict()
     except ValueError:
         raise ValueError(f"Invalid JSON format in file '{path}'")
 
     return ((config["opt_model_name"], config["opt_system_prompt"]), config["models"], config["system_prompts"], config["output_formatting"])
-
-
-# def get_ICD_dataset(path: Path) -> dict:
-#     icdList = {}
-#     fileExtension = path.suffix
-#     try:
-#         with open(path, mode="r", encoding="utf-8") as file:
-#             if fileExtension == ".csv":
-#                 df = pd.read_csv(file, quotechar='"', encoding="utf-8")
-#                 icdList = dict(zip(df["DIAGNOSTIC"], df["CODE"]))
-#             elif fileExtension == ".json":
-#                 icdList = pd.read_json(file)
-#             else:
-#                 raise ValueError(
-#                     "ICD Dataset - Extension not supported. Extension must be: '.json', '.csv'"
-#                 )
-#     except FileNotFoundError:
-#         raise FileNotFoundError(f"File '{path}' not found")
-
-#     return icdList
 
 
 def _process_model_info(raw_model: str, installed_models: list[dict]) -> dict:
@@ -283,11 +270,11 @@ def print_evaluated_results(results: dict):
 
     print(
         f"""
-        Accuracy: {results["performance"]["accuracy"]}% ({int((results["performance"]["accuracy"] / 100) * results["performance"]["totalETProcessed"])}/{results["performance"]["totalETProcessed"]})
-        Incorrect outputs: {results["performance"]["incorrectOutputs"]}% ({int((results["performance"]["incorrectOutputs"] / 100) * results["performance"]["totalETProcessed"])}/{results["performance"]["totalETProcessed"]})
-        Errors: {results["performance"]["errors"]}% ({int((results["performance"]["errors"] / 100) * results["performance"]["totalETProcessed"])}/{results["performance"]["totalETProcessed"]})
+        Accuracy: {results["performance"]["accuracy"]}% ({int((results["performance"]["accuracy"] / 100) * results["performance"]["totalTextsProcessed"])}/{results["performance"]["totalTextsProcessed"]})
+        Incorrect outputs: {results["performance"]["incorrectOutputs"]}% ({int((results["performance"]["incorrectOutputs"] / 100) * results["performance"]["totalTextsProcessed"])}/{results["performance"]["totalTextsProcessed"]})
+        Errors: {results["performance"]["errors"]}% ({int((results["performance"]["errors"] / 100) * results["performance"]["totalTextsProcessed"])}/{results["performance"]["totalTextsProcessed"]})
         Batches: {results["performance"]["numBatches"]}
-        Total records processed: {results["performance"]["totalETProcessed"]}
+        Total records processed: {results["performance"]["totalTextsProcessed"]}
          
         Duration: {results["performance"]["processingTime"]["duration"]} s.
         Start time: {results["performance"]["processingTime"]["startDateTime"]}

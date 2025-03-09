@@ -21,8 +21,8 @@ class EvolutionTextDiagnostic(BaseModel):
     icd_code: str = Field(
         title="Código CIE-10 enfermedad",
         description="Código CIE-10 de la enfermedad principal, basado en el historial del paciente. Debe seguir el formato estándar.",
-        examples=["M06.4", "M06.", "M05.0"],
-        pattern=r"^[A-Z]\d{2}(\.\d{1,3})?$",
+        examples=["M06.4", "M06.33", "M05.0"],
+        pattern=r"^[A-Z0-9]{1,3}(\.\d{1,5})?$",
     )
 
 

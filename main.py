@@ -5,7 +5,7 @@ from evolution_text_analyzer.auxiliary_functions import (
     get_evolution_texts,
     get_listed_models,
     choose_model,
-    get_optimal_analyzer_configuration,
+    get_analyzer_configuration,
     write_results
 )
 
@@ -16,7 +16,6 @@ if __name__ == "__main__" and check_ollama_connected():
     EVOLUTION_TEXTS_FILENAME = Path(
         __file__).parent / "evolution_texts_resolved.csv"
     CONFIG_FILENAME = Path(__file__).parent / "config.json"
-    # MODELS_LIST_FILENAME = Path(__file__).parent / "models.json"
     testingResultsDir = Path(__file__).parent / "testing_results"
     testingResultsDir.mkdir(parents=True, exist_ok=True)
     resultsDir = Path(__file__).parent / "results"
@@ -25,26 +24,26 @@ if __name__ == "__main__" and check_ollama_connected():
     evolutionTexts = get_evolution_texts(EVOLUTION_TEXTS_FILENAME)
 
     args = get_args(len(evolutionTexts))
-    if args.test or args.test_prompts:
-        _, models, systemPrompts, outputFormatting = get_optimal_analyzer_configuration(CONFIG_FILENAME)
+    if args.test or args.testPrompts:
+        _, models, systemPrompts, outputFormatting = get_analyzer_configuration(CONFIG_FILENAME)
         evaluate_analysis(
-            get_listed_models(models, args.installed) if args.mode == 1 else choose_model(
-                models, args.installed),
+            get_listed_models(models, args.onlyInstalledModels) if args.mode == 1 else choose_model(
+                models, args.onlyInstalledModels),
             evolutionTexts,
-            systemPrompts if args.test_prompts else [systemPrompts[0]],
+            systemPrompts if args.testPrompts else [systemPrompts[0]],
             outputFormatting,
-            args.batches,
-            args.num_texts,
+            args.numBatches,
+            args.numEvolutionTexts,
             testingResultsDir,
         )
     else:
-        opt, models, systemPrompts, outputFormatting = get_optimal_analyzer_configuration(
+        opt, models, systemPrompts, outputFormatting = get_analyzer_configuration(
             CONFIG_FILENAME)
         results = evolution_text_analysis(
             models[opt[0]],
             evolutionTexts,
             systemPrompts[opt[1]]+outputFormatting,
-            args.batches,
-            args.num_texts,
+            args.numBatches,
+            args.numEvolutionTexts,
         )
         write_results(resultsDir / "processed_evolution_texts.json", results)

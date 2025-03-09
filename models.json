@@ -1,8 +1,0 @@
-[
-  "llama3.2:3b-instruct-q8_0",
-  "llama3.1:8b-instruct-q8_0",
-  "phi4:14b-q8_0",
-  "mixtral:8x7b",
-  "llama3.3:latest",
-  "meditron:7b-q8_0"
-]

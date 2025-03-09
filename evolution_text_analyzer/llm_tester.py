@@ -26,9 +26,9 @@ def evaluate_analysis(
         def _process_record(processedEvolutionText: dict, correctDiagnostic: str):
             try:
                 if not processedEvolutionText.get("processing_error"):
-                    isValid = validate_result(
-                        processedEvolutionText["principal_diagnostic"], correctDiagnostic
-                    )
+                    isValid = validate_result(modelInfo["modelName"],
+                                              processedEvolutionText["principal_diagnostic"], correctDiagnostic
+                                              )
                 else:
                     isValid = False
 
@@ -117,8 +117,8 @@ def evaluate_analysis(
                     "endDateTime": time.strftime(dateFormat, endTime["endDate"]),
                 },
                 "numBatches": argsBatches,
-                "numPrompt": numSystemPrompt,
-                "totalETProcessed": argsNumEvolutionTexts,
+                "numSystemPrompt": numSystemPrompt,
+                "totalTextsProcessed": argsNumEvolutionTexts,
             },
             "evaluatedEvolutionTexts": evaluatedEvolutionTexts,
         }
@@ -131,21 +131,23 @@ def evaluate_analysis(
                 testingResultsDir / f"results_{model_s[0]['modelName'].replace(':', '_')}.json", evaluationResults)
         else:
             allEvaluationsResults = []
-            for systemPrompt in range(len(systemPrompt_s)):
-                evaluationResults = evaluate(model_s[0], systemPrompt)
-                update_results(testingResultsDir / f"results_{model_s[0]['modelName'].replace(':', '_')}_all_prompts.json", evaluationResults, allEvaluationsResults)
+            for numSystemPrompt in range(len(systemPrompt_s)):
+                evaluationResults = evaluate(model_s[0], numSystemPrompt)
+                update_results(
+                    testingResultsDir / f"results_{model_s[0]['modelName'].replace(':', '_')}_all_prompts.json", evaluationResults, allEvaluationsResults)
     else:
         if len(systemPrompt_s) == 1:
             allEvaluationsResults = []
             for model in model_s:
                 if (check_model):
                     evaluationResults = evaluate(model)
-                    update_results(testingResultsDir / "results_allListedModels.json", evaluationResults, allEvaluationsResults)
+                    update_results(testingResultsDir / "results_allListedModels.json",
+                                   evaluationResults, allEvaluationsResults)
         else:
             allEvaluationsResults = []
-            for systemPrompt in range(len(systemPrompt_s)):
+            for numSystemPrompt in range(len(systemPrompt_s)):
                 for model in model_s:
                     if (check_model):
-                        evaluationResults = evaluate(model, systemPrompt)
+                        evaluationResults = evaluate(model, numSystemPrompt)
                         update_results(testingResultsDir / "results_allListedModels_all_prompts.json", evaluationResults,
                                        allEvaluationsResults)
