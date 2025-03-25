@@ -10,7 +10,6 @@
     "mixtral:8x7b-instruct-v0.1-q4_0",
     "gemma:2b-instruct-q8_0",
     "gemma:7b-instruct-q8_0",
-    "taozhiyuai/openbiollm-llama-3:8b_q8_0",
     "mistral:7b-instruct-v0.3-q8_0",
     "qwen2.5:1.5b-instruct-q8_0",
     "qwen2.5:7b-instruct-q8_0"
