@@ -106,7 +106,10 @@ def evaluate_analysis(
         return {
             "model": modelInfo,
             "performance": {
-                "accuracy": metrics["accuracy"],
+                "accuracy": {
+                    "percentage": metrics["accuracy"],
+                    "hits": int(metrics["accuracy"] * argsNumEvolutionTexts / 100),
+                },
                 "incorrectOutputs": metrics["incorrectOutputs"],
                 "errors": metrics["errors"],
                 "processingTime": {

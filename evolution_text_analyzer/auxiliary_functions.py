@@ -270,7 +270,7 @@ def print_evaluated_results(results: dict):
 
     print(
         f"""
-        Accuracy: {results["performance"]["accuracy"]}% ({int((results["performance"]["accuracy"] / 100) * results["performance"]["totalTextsProcessed"])}/{results["performance"]["totalTextsProcessed"]})
+        Accuracy: {results["performance"]["accuracy"]["percentage"]}% ({int((results["performance"]["accuracy"]["percentage"] / 100) * results["performance"]["totalTextsProcessed"])}/{results["performance"]["totalTextsProcessed"]})
         Incorrect outputs: {results["performance"]["incorrectOutputs"]}% ({int((results["performance"]["incorrectOutputs"] / 100) * results["performance"]["totalTextsProcessed"])}/{results["performance"]["totalTextsProcessed"]})
         Errors: {results["performance"]["errors"]}% ({int((results["performance"]["errors"] / 100) * results["performance"]["totalTextsProcessed"])}/{results["performance"]["totalTextsProcessed"]})
         Batches: {results["performance"]["numBatches"]}
@@ -286,7 +286,7 @@ def print_evaluated_results(results: dict):
 def update_results(resultsPath: Path, partialResult: dict, modelsResults: list):
     modelsResults.append(partialResult)
     modelsResults.sort(
-        key=lambda x: x["performance"]["accuracy"], reverse=True)
+        key=lambda x: x["performance"]["accuracy"]["percentage"], reverse=True)
     write_results(resultsPath, modelsResults)
 
 

@@ -9,11 +9,9 @@ from langchain.prompts import (
     HumanMessagePromptTemplate,
     SystemMessagePromptTemplate,
 )
-from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_ollama.llms import OllamaLLM
 from pydantic import BaseModel, Field
 
-from .auxiliary_functions import print_execution_progression
 
 import unicodedata
 
@@ -86,7 +84,7 @@ def model_validation(modelName: str, diag1: str, diag2: str):
             No asumas que dos nombres similares significan la misma enfermedad sin evidencia clara."""
         ),
         HumanMessagePromptTemplate.from_template(
-            '¿La enfermedad "{diag1}" es exactamente la misma que "{diag2}" según criterios médicos oficiales? '
+            '¿La enfermedad "{diag1}" es exactamente la misma que "{diag2}" según criterios médicos oficiales?'
             'Responde solo con "True" o "False".'
         ),
         ],

@@ -5,8 +5,15 @@
     "llama3.2:3b-instruct-q8_0",
     "llama3.1:8b-instruct-q8_0",
     "phi4:14b-q8_0",
-    "aya-expanse:8b-q8_0",
-    "tulu3:8b-q8_0"
+    "phi4:14b-q4_K_M",
+    "gemma3:12b-it-q8_0",
+    "mixtral:8x7b-instruct-v0.1-q4_0",
+    "gemma:2b-instruct-q8_0",
+    "gemma:7b-instruct-q8_0",
+    "taozhiyuai/openbiollm-llama-3:8b_q8_0",
+    "mistral:7b-instruct-v0.3-q8_0",
+    "qwen2.5:1.5b-instruct-q8_0",
+    "qwen2.5:7b-instruct-q8_0"
   ],
   "system_prompts": [
     "Eres un sistema médico especializado en el análisis de historiales médicos sobre enfermedades reumatológicas. Tu tarea es identificar y extraer el nombre de la enfermedad principal mencionada en el historial médico proporcionado, junto con su código CIE-10 correspondiente. La enfermedad principal debe reflejarse con precisión en el nombre y el código, utilizando exclusivamente la terminología oficial de la Clasificación Internacional de Enfermedades (CIE-10) para el diagnóstico principal. Asegúrate de que el nombre del diagnóstico principal (principal_diagnostic) coincida exactamente con la descripción asociada al código CIE-10 (icd_code) seleccionado, evitando discrepancias entre ambos.",
