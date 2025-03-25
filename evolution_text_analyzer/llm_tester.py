@@ -143,7 +143,7 @@ def evaluate_analysis(
             allEvaluationsResults = []
             for model in model_s:
                 if (check_model):
-                    evaluationResults = evaluate(model)
+                    evaluationResults = evaluate(model, 0)
                     update_results(testingResultsDir / "results_allListedModels.json",
                                    evaluationResults, allEvaluationsResults)
         else:
