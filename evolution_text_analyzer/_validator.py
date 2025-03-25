@@ -111,5 +111,4 @@ def validate_result(modelName: str, processedDiag: str, correctDiag: str):
     if (processedDiagNorm == correctDiagNorm) or processedDiagNorm.find(correctDiagNorm) != -1 or correctDiagNorm.find(processedDiagNorm) != -1:
         return True
     else:
-        print("\r Validating reuslts")
         return model_validation(modelName, processedDiagNorm, correctDiagNorm)
