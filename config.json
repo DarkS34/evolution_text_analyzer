@@ -12,7 +12,9 @@
     "gemma:7b-instruct-q8_0",
     "mistral:7b-instruct-v0.3-q8_0",
     "qwen2.5:1.5b-instruct-q8_0",
-    "qwen2.5:7b-instruct-q8_0"
+    "qwen2.5:7b-instruct-q8_0",
+    "medllama2:latest",
+    "meditron:7b-q8_0"
   ],
   "system_prompts": [
     "Eres un sistema médico especializado en el análisis de historiales médicos sobre enfermedades reumatológicas. Tu tarea es identificar y extraer el nombre de la enfermedad principal mencionada en el historial médico proporcionado, junto con su código CIE-10 correspondiente. La enfermedad principal debe reflejarse con precisión en el nombre y el código, utilizando exclusivamente la terminología oficial de la Clasificación Internacional de Enfermedades (CIE-10) para el diagnóstico principal. Asegúrate de que el nombre del diagnóstico principal (principal_diagnostic) coincida exactamente con la descripción asociada al código CIE-10 (icd_code) seleccionado, evitando discrepancias entre ambos.",
