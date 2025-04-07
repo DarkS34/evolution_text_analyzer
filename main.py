@@ -25,7 +25,8 @@ if __name__ == "__main__" and check_ollama_connected():
 
     args = get_args(len(evolutionTexts))
     if args.test or args.testPrompts:
-        _, models, systemPrompts, outputFormatting = get_analyzer_configuration(CONFIG_FILENAME)
+        _, models, systemPrompts, outputFormatting = get_analyzer_configuration(
+            CONFIG_FILENAME)
         evaluate_analysis(
             get_listed_models(models, args.onlyInstalledModels) if args.mode == 1 else choose_model(
                 models, args.onlyInstalledModels),
@@ -35,6 +36,7 @@ if __name__ == "__main__" and check_ollama_connected():
             args.numBatches,
             args.numEvolutionTexts,
             testingResultsDir,
+            args.verbose,
         )
     else:
         opt, models, systemPrompts, outputFormatting = get_analyzer_configuration(

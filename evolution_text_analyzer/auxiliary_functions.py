@@ -74,6 +74,12 @@ def get_args(numEvolutionTexts: int):
         dest="testPrompts",
         help="Use all system prompts for testing (default: False)",
     )
+    parser.add_argument(
+        "-v","--verbose",
+        action="store_true",
+        dest="verboseMode",
+        help="Verbose mode (default: False)",
+    )
 
     return parser.parse_args()
 
@@ -248,25 +254,26 @@ def choose_model(models, installed_only: bool = False) -> dict | None:
         return None
 
 
-def print_evaluated_results(results: dict):
-    for id, eet in results["evaluatedEvolutionTexts"].items():
-        print(
-            f"""
-        {id} - {eet["valid"]} {"-" * 20}
-        Model result: {eet["processedOutput"].get("principal_diagnostic")} ({eet["processedOutput"].get("icd_code")})
-        Correct result: {eet["correctOutput"]["principal_diagnostic"]}
-        """,
-            (
-                f"Error: {eet['processedOutput'].get('processing_error')}\n"
-                if eet["processedOutput"].get("processing_error")
-                else ""
-            ),
-            (
-                f"Error: {eet['processedOutput'].get('validation_error')}\n"
-                if eet["processedOutput"].get("validation_error")
-                else ""
-            ),
-        )
+def print_evaluated_results(results: dict, verbose: bool) -> None:
+    if verbose:
+        for id, eet in results["evaluatedEvolutionTexts"].items():
+            print(
+                f"""
+            {id} - {eet["valid"]} {"-" * 20}
+            Model result: {eet["processedOutput"].get("principal_diagnostic")} ({eet["processedOutput"].get("icd_code")})
+            Correct result: {eet["correctOutput"]["principal_diagnostic"]}
+            """,
+                (
+                    f"Error: {eet['processedOutput'].get('processing_error')}\n"
+                    if eet["processedOutput"].get("processing_error")
+                    else ""
+                ),
+                (
+                    f"Error: {eet['processedOutput'].get('validation_error')}\n"
+                    if eet["processedOutput"].get("validation_error")
+                    else ""
+                ),
+            )
 
     print(
         f"""

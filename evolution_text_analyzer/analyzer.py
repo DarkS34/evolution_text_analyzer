@@ -1,4 +1,3 @@
-from langchain.output_parsers import PydanticOutputParser
 from langchain.prompts import (
     ChatPromptTemplate,
     HumanMessagePromptTemplate,
@@ -6,24 +5,11 @@ from langchain.prompts import (
 )
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_ollama.llms import OllamaLLM
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from ._custom_parser import CustomParser
 
 from .auxiliary_functions import print_execution_progression
 
-
-class EvolutionTextDiagnostic(BaseModel):
-    principal_diagnostic: str = Field(
-        title="Nombre enfermedad",
-        description="Nombre de la enfermedad principal, basado en el historial del paciente",
-        min_length=3,
-        max_length=100,
-    )
-    icd_code: str = Field(
-        title="Código CIE-10 enfermedad",
-        description="Código CIE-10 de la enfermedad principal, basado en el historial del paciente. Debe seguir el formato estándar.",
-        examples=["M06.4", "M06.33", "M05.0"],
-        pattern=r"^[A-Z0-9]{1,3}(\.\d{1,5})?$",
-    )
 
 
 def evolution_text_analysis(
@@ -48,9 +34,6 @@ def evolution_text_analysis(
     )
     numBatches = min(numBatches, len(evolutionTexts))
 
-    # Parser
-    parser = PydanticOutputParser(pydantic_object=EvolutionTextDiagnostic)
-
     # Prompt
     prompt = ChatPromptTemplate(
         messages=[
@@ -60,6 +43,9 @@ def evolution_text_analysis(
             ),
         ],
     )
+
+    #Parser
+    parser = CustomParser()
 
     # Chain configuration
     chain = prompt | model | parser
