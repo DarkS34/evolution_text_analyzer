@@ -9,7 +9,7 @@ dependencies = [
     "langchain>=0.3.18",
     "ollama>=0.4.7",
     "pandas>=2.2.3",
-    "ruff>=0.9.6",
     "torch>=2.6.0",
     "transformers>=4.49.0",
+    "accelerate>=1.6.0",
 ]
