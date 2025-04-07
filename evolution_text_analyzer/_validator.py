@@ -108,7 +108,8 @@ def validate_result(modelName: str, processedDiag: str, correctDiag: str):
     processedDiagNorm = normalize_name(processedDiag)
     correctDiagNorm = normalize_name(correctDiag)
 
-    if (processedDiagNorm == correctDiagNorm) or processedDiagNorm.find(correctDiagNorm) != -1 or correctDiagNorm.find(processedDiagNorm) != -1:
-        return True
-    else:
-        return model_validation(modelName, processedDiagNorm, correctDiagNorm)
+    # if (processedDiagNorm == correctDiagNorm) or processedDiagNorm.find(correctDiagNorm) != -1 or correctDiagNorm.find(processedDiagNorm) != -1:
+    #     return True
+    # else:
+    #     return model_validation(modelName, processedDiagNorm, correctDiagNorm)
+    return (processedDiagNorm == correctDiagNorm) or processedDiagNorm.find(correctDiagNorm) != -1 or correctDiagNorm.find(processedDiagNorm) != -1
