@@ -10,7 +10,7 @@ from evolution_text_analyzer.auxiliary_functions import (
 )
 
 from evolution_text_analyzer.analyzer import evolution_text_analysis
-from evolution_text_analyzer.llm_tester import evaluate_analysis
+from evolution_text_analyzer.tester import evaluate_analysis
 
 if __name__ == "__main__" and check_ollama_connected():
     EVOLUTION_TEXTS_FILENAME = Path(
