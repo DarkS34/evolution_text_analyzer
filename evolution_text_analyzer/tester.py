@@ -3,155 +3,193 @@
 This module does stuff.
 """
 
+from pydantic import BaseModel
 import time
 from pathlib import Path
+from typing import Dict, List, Optional
 
 from ._validator import validate_result
 from .analyzer import evolution_text_analysis
 from .auxiliary_functions import check_model, print_evaluated_results, update_results, write_results
 
 
-def evaluate_analysis(
-    model_s: list,
-    evolutionTexts: list,
-    systemPrompt_s: list,
-    formatPrompt: str,
-    argsBatches: int,
-    argsNumEvolutionTexts: int,
-    testingResultsDir: Path,
-    verbose: bool,
-):
-    dateFormat = "%H:%M:%S %d-%m-%Y"
+class DiagnosticResult(BaseModel):
+    icdCode: Optional[str]
+    principalDiagnostic: Optional[str]
+    validationError: Optional[str] = None
+    processingError: Optional[str] = None
 
-    def evaluate(modelInfo: dict, numSystemPrompt: int):
-        def _process_record(processedEvolutionText: dict, correctDiagnostic: str):
-            try:
-                if not processedEvolutionText.get("processing_error"):
-                    isValid = validate_result(modelInfo["modelName"],
-                                              processedEvolutionText["principal_diagnostic"], correctDiagnostic
-                                              )
-                else:
-                    isValid = False
 
-                # Validar resultados
-                return {
-                    "valid": isValid,
-                    "processedOutput": processedEvolutionText,
-                    "correctOutput": {
-                        "principal_diagnostic": correctDiagnostic,
-                    },
-                }
-            except Exception as e:
-                errorOutput = {
-                    "icd_code": None,
-                    "principal_diagnostic": None,
-                    "validation_error": str(e),
-                }
+class EvaluationOutput(BaseModel):
+    valid: bool
+    processedOutput: DiagnosticResult
+    correctOutput: Dict[str, str]
 
-                return {
-                    "valid": False,
-                    "processedOutput": errorOutput,
-                    "correctOutput": {
-                        "principal_diagnostic": correctDiagnostic,
-                    },
-                }
 
-        def _calculate_metrics(evaluatedEvolutionTexts):
-            auxList = list(evaluatedEvolutionTexts.values())
-            total = len(evaluatedEvolutionTexts)
-            validCount = sum(1 for eet in auxList if eet["valid"])
-            errorCount = sum(
-                1
-                for eet in auxList
-                if not eet["valid"]
-                and (
-                    eet["processedOutput"].get("validation_error")
-                    or eet["processedOutput"].get("processing_error")
-                )
-            )
-            return {
-                "accuracy": round(validCount / total * 100, 2),
-                "incorrectOutputs": round(
-                    100.00 - ((validCount + errorCount) / total * 100), 2
-                ),
-                "errors": round(errorCount / total * 100, 2),
-            }
+class PerformanceMetrics(BaseModel):
+    accuracy: float
+    incorrectOutputs: float
+    errors: float
+    hits: int
+    totalTexts: int
+    duration: float
+    startTime: str
+    endTime: str
+    numBatches: int
+    promptIndex: int
 
-        startTime = {"startDuration": time.time(
-        ), "startDate": time.localtime()}
-        processedEvolutionTexts = evolution_text_analysis(
-            modelInfo["modelName"],
-            evolutionTexts,
-            systemPrompt_s[numSystemPrompt]+formatPrompt,
-            argsBatches,
-            argsNumEvolutionTexts,
+
+class EvaluationResult(BaseModel):
+    modelInfo: dict
+    performance: PerformanceMetrics
+    evaluatedTexts: Dict[str, EvaluationOutput]
+
+
+def process_record(modelName: str, processed: dict, expected: str) -> EvaluationOutput:
+    try:
+        if not processed.get("processing_error"):
+            valid = validate_result(modelName, processed["principal_diagnostic"], expected)
+        else:
+            valid = False
+        result = DiagnosticResult(
+            icdCode=processed.get("icd_code"),
+            principalDiagnostic=processed.get("principal_diagnostic"),
+            processingError=processed.get("processing_error"),
         )
-        endTime = {"endDuration": time.time(), "endDate": time.localtime()}
+    except Exception as e:
+        valid = False
+        result = DiagnosticResult(
+            icdCode=None,
+            principalDiagnostic=None,
+            validationError=str(e),
+        )
 
-        evaluatedEvolutionTexts = {}
-        processedEvolutionTexts = list(processedEvolutionTexts.items())
+    return EvaluationOutput(
+        valid=valid,
+        processedOutput=result,
+        correctOutput={"principal_diagnostic": expected},
+    )
 
-        for i in range(argsNumEvolutionTexts):
-            evaluatedEvolutionTexts.update(
-                {
-                    processedEvolutionTexts[i][0]: _process_record(
-                        processedEvolutionTexts[i][1],
-                        evolutionTexts[i]["principal_diagnostic"],
-                    )
-                }
-            )
 
-        # Calculate final metrics
-        metrics = _calculate_metrics(evaluatedEvolutionTexts)
+def calculate_metrics(
+    evaluated: Dict[str, EvaluationOutput],
+    totalTexts: int,
+    numBatches: int,
+    promptIndex: int,
+    start: float,
+    end: float,
+    dateFormat: str
+) -> PerformanceMetrics:
+    valid = sum(1 for e in evaluated.values() if e.valid)
+    errors = sum(
+        1 for e in evaluated.values()
+        if not e.valid and (e.processedOutput.validationError or e.processedOutput.processingError)
+    )
+    incorrect = totalTexts - valid - errors
 
-        return {
-            "model": modelInfo,
-            "performance": {
-                "accuracy": {
-                    "percentage": metrics["accuracy"],
-                    "hits": int(metrics["accuracy"] * argsNumEvolutionTexts / 100),
-                },
-                "incorrectOutputs": metrics["incorrectOutputs"],
-                "errors": metrics["errors"],
-                "processingTime": {
-                    "duration": round(
-                        endTime["endDuration"] - startTime["startDuration"], 2
-                    ),
-                    "startDateTime": time.strftime(dateFormat, startTime["startDate"]),
-                    "endDateTime": time.strftime(dateFormat, endTime["endDate"]),
-                },
-                "numBatches": argsBatches,
-                "numSystemPrompt": numSystemPrompt,
-                "totalTextsProcessed": argsNumEvolutionTexts,
-            },
-            "evaluatedEvolutionTexts": evaluatedEvolutionTexts,
-        }
+    return PerformanceMetrics(
+        accuracy=round((valid / totalTexts) * 100, 2),
+        incorrectOutputs=round((incorrect / totalTexts) * 100, 2),
+        errors=round((errors / totalTexts) * 100, 2),
+        hits=valid,
+        totalTexts=totalTexts,
+        duration=round(end - start, 2),
+        startTime=time.strftime(dateFormat, time.localtime(start)),
+        endTime=time.strftime(dateFormat, time.localtime(end)),
+        numBatches=numBatches,
+        promptIndex=promptIndex,
+    )
 
-    if len(model_s) == 1:
-        if len(systemPrompt_s) == 1:
-            evaluationResults = evaluate(model_s[0], 0)
+
+def evaluate_model(
+    modelInfo: dict,
+    evolutionTexts: List[dict],
+    prompt: str,
+    formatPrompt: str,
+    numBatches: int,
+    numTexts: int,
+    promptIndex: int,
+    dateFormat: str = "%H:%M:%S %d-%m-%Y"
+) -> EvaluationResult:
+
+    start = time.time()
+    processed = evolution_text_analysis(
+        modelInfo["modelName"],
+        evolutionTexts,
+        prompt + formatPrompt,
+        numBatches,
+        numTexts,
+    )
+    end = time.time()
+
+    evaluated = {
+        key: process_record(modelInfo["modelName"], result, evolutionTexts[i]["principal_diagnostic"])
+        for i, (key, result) in enumerate(processed.items())
+    }
+
+    metrics = calculate_metrics(
+        evaluated,
+        totalTexts=numTexts,
+        numBatches=numBatches,
+        promptIndex=promptIndex,
+        start=start,
+        end=end,
+        dateFormat=dateFormat
+    )
+
+    return EvaluationResult(
+        modelInfo=modelInfo,
+        performance=metrics,
+        evaluatedTexts=evaluated
+    )
+
+
+def evaluate_analysis(
+    models: List[dict],
+    evolutionTexts: List[dict],
+    systemPrompts: List[str],
+    formatPrompt: str,
+    numBatches: int,
+    numTexts: int,
+    testingResultsDir: Path,
+    verbose: bool
+):
+    if len(models) == 1:
+        if len(systemPrompts) == 1:
+            evaluationResults = evaluate_model(models[0], evolutionTexts, systemPrompts[0], formatPrompt, numBatches, numTexts, 0)
             print_evaluated_results(evaluationResults, verbose)
             write_results(
-                testingResultsDir / f"results_{model_s[0]['modelName'].replace(':', '_')}.json", evaluationResults)
+                testingResultsDir / f"results_{models[0]['modelName'].replace(':', '_')}.json",
+                evaluationResults
+            )
         else:
             allEvaluationsResults = []
-            for numSystemPrompt in range(len(systemPrompt_s)):
-                evaluationResults = evaluate(model_s[0], numSystemPrompt)
+            for promptIndex, prompt in enumerate(systemPrompts):
+                evaluationResults = evaluate_model(models[0], evolutionTexts, prompt, formatPrompt, numBatches, numTexts, promptIndex)
                 update_results(
-                    testingResultsDir / f"results_{model_s[0]['modelName'].replace(':', '_')}_all_prompts.json", evaluationResults, allEvaluationsResults)
+                    testingResultsDir / f"results_{models[0]['modelName'].replace(':', '_')}_all_prompts.json",
+                    evaluationResults,
+                    allEvaluationsResults
+                )
     else:
-        if len(systemPrompt_s) == 1:
+        if len(systemPrompts) == 1:
             allEvaluationsResults = []
-            for model in model_s:
-                if (check_model):
-                    evaluationResults = evaluate(model, 0)
-                    update_results(testingResultsDir / "results_allListedModels.json",
-                                   evaluationResults, allEvaluationsResults)
+            for model in models:
+                if check_model:
+                    evaluationResults = evaluate_model(model, evolutionTexts, systemPrompts[0], formatPrompt, numBatches, numTexts, 0)
+                    update_results(
+                        testingResultsDir / "results_allListedModels.json",
+                        evaluationResults,
+                        allEvaluationsResults
+                    )
         else:
             allEvaluationsResults = []
-            for numSystemPrompt in range(len(systemPrompt_s)):
-                for model in model_s:
-                    if (check_model):
-                        evaluationResults = evaluate(model, numSystemPrompt)
-                        update_results(testingResultsDir / "results_allListedModels_all_prompts.json", evaluationResults,
-                                       allEvaluationsResults)
+            for promptIndex, prompt in enumerate(systemPrompts):
+                for model in models:
+                    if check_model:
+                        evaluationResults = evaluate_model(model, evolutionTexts, prompt, formatPrompt, numBatches, numTexts, promptIndex)
+                        update_results(
+                            testingResultsDir / "results_allListedModels_all_prompts.json",
+                            evaluationResults,
+                            allEvaluationsResults
+                        )

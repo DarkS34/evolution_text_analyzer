@@ -1,7 +1,7 @@
 from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
-class EvolutionTextDiagnosticSchema(BaseModel):
+class _EvolutionTextDiagnosticSchema(BaseModel):
     principal_diagnostic: str = Field(
         title="Nombre enfermedad",
         description="Nombre de la enfermedad principal, basado en el historial del paciente",
@@ -17,11 +17,12 @@ class EvolutionTextDiagnosticSchema(BaseModel):
 
 class CustomParser(PydanticOutputParser):
     def __init__(self, **kwargs):
-        # Si ya te pasan el pydantic_object, usalo; si no, poné el tuyo
-        kwargs.setdefault("pydantic_object", EvolutionTextDiagnosticSchema)
+        kwargs.setdefault("pydantic_object", _EvolutionTextDiagnosticSchema)
         super().__init__(**kwargs)
 
-    def parse(self, text: str) -> EvolutionTextDiagnosticSchema:
+    def parse(self, text: str) -> _EvolutionTextDiagnosticSchema:
         parsed = super().parse(text)
-        print("🎯 Resultado parseado:", parsed)
+        # Codigo de normalizaciíon de los codigos CIE-10
+        
+        parsed.icd_code = parsed.icd_code.replace(" ", "").replace("-", ".")
         return parsed
