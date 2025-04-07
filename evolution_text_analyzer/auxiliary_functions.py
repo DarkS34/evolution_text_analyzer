@@ -2,209 +2,147 @@
 
 This module does stuff.
 """
+from pydantic import BaseModel
 from pathlib import Path
 from argparse import ArgumentParser
 from pydantic import ByteSize
-
 import os
 import ollama
 import pandas as pd
 import requests
 import json
 
+# ------------------------
+# Data Models
+# ------------------------
 
-def check_ollama_connected(url="http://localhost:11434"):
+
+class ModelInfo(BaseModel):
+    modelName: str
+    installed: bool = False
+    size: str | None = None
+    parameterSize: str | None = None
+    quantizationLevel: str | None = None
+
+# ------------------------
+# Connection & Argument Handling
+# ------------------------
+
+def check_ollama_connected(url="http://localhost:11434") -> bool:
     try:
         response = requests.get(url)
         if response.status_code == 200:
             return True
-        else:
-            print("There is a problem. Try to restart Ollama to see available models.")
-            return False
+        print("There is a problem. Try to restart Ollama to see available models.")
+        return False
     except requests.ConnectionError as e:
-        print(
-            f"Error:\n{e}.\nOllama is not running. Start ollama to see available models.\n"
-        )
+        print(f"Error:\n{e}.\n\nOllama is not running.\n")
         return False
 
-
 def get_args(numEvolutionTexts: int):
-    parser = ArgumentParser(
-        description="Script for processing with labeled modes.", allow_abbrev=False)
-    parser.add_argument(
-        "-m", "--mode",
-        type=int,
-        default=1,
-        required=False,
-        choices=[1, 2],
-        dest="mode",
-        help="Operation mode (1 or 2)",
-    )
-    parser.add_argument(
-        "-b", "--batches",
-        type=int,
-        default=1,
-        required=False,
-        dest="numBatches",
-        help="Number of batches for parallel evolution texts processing (default: 1)",
-    )
-    parser.add_argument(
-        "-n", "--num-texts",
-        type=int,
-        default=numEvolutionTexts,
-        required=False,
-        dest="numEvolutionTexts",
-        help="Number of evolution texts to process (default: 2)",
-    )
-    parser.add_argument(
-        "-t", "-test",
-        action="store_true",
-        dest="test",
-        help="Test mode (default: False)",
-    )
-    parser.add_argument(
-        "-i", "-installed",
-        action="store_true",
-        dest="onlyInstalledModels",
-        help="Use only installed models (default: False)",
-    )
-    parser.add_argument(
-        "-p","--test-prompts",
-        action="store_true",
-        dest="testPrompts",
-        help="Use all system prompts for testing (default: False)",
-    )
-    parser.add_argument(
-        "-v","--verbose",
-        action="store_true",
-        dest="verboseMode",
-        help="Verbose mode (default: False)",
-    )
-
+    parser = ArgumentParser(description="Script for processing with labeled modes.", allow_abbrev=False)
+    parser.add_argument("-m", "--mode", type=int, choices=[1, 2], default=1, help="Operation mode (1 or 2)")
+    parser.add_argument("-b", "--batches", type=int, default=1, dest="numBatches")
+    parser.add_argument("-n", "--num-texts", type=int, default=numEvolutionTexts, dest="numEvolutionTexts")
+    parser.add_argument("-t", "--test", action="store_true", dest="test")
+    parser.add_argument("-i", "--installed", action="store_true", dest="onlyInstalledModels")
+    parser.add_argument("-p", "--test-prompts", action="store_true", dest="testPrompts")
+    parser.add_argument("-v", "--verbose", action="store_true", dest="verboseMode")
     return parser.parse_args()
 
+# ------------------------
+# File and Config Handling
+# ------------------------
 
 def get_evolution_texts(path: Path):
-    evolutionTextsList = []
-    fileExtension = path.suffix
-    try:
-        with open(path, mode="r", encoding="utf-8") as file:
-            if fileExtension == ".csv":
-                evolutionTextsList = pd.read_csv(
-                    file,
-                    sep="|",
-                    quotechar="'",
-                ).to_dict(orient="records")
-            elif fileExtension == ".json":
-                evolutionTextsList = pd.read_json(file)
-            else:
-                raise ValueError(
-                    "Evolution Texts - Extension not supported. Extension must be: '.json', '.csv'"
-                )
-    except FileNotFoundError:
+    if not path.exists():
         raise FileNotFoundError(f"File '{path}' not found")
 
-    for et in evolutionTextsList:
+    ext = path.suffix
+    with open(path, mode="r", encoding="utf-8") as file:
+        if ext == ".csv":
+            texts = pd.read_csv(file, sep="|", quotechar="'").to_dict(orient="records")
+        elif ext == ".json":
+            texts = pd.read_json(file)
+        else:
+            raise ValueError("Extension not supported. Must be .json or .csv")
+
+    for et in texts:
         et["evolution_text"] = et["evolution_text"].replace("\n", " ")
 
-    return evolutionTextsList
-
+    return texts
 
 def get_analyzer_configuration(path: Path) -> tuple[tuple[str, str], list[str], list[str], str]:
     if not path.exists():
         raise FileNotFoundError(f"File '{path}' not found")
     try:
-        config = pd.read_json(path, typ="series")
-        config = config.to_dict()
+        config = pd.read_json(path, typ="series").to_dict()
     except ValueError:
         raise ValueError(f"Invalid JSON format in file '{path}'")
 
-    return ((config["opt_model_name"], config["opt_system_prompt"]), config["models"], config["system_prompts"], config["output_formatting"])
-
-
-def _process_model_info(raw_model: str, installed_models: list[dict]) -> dict:
-    """Process raw model data into a structured dictionary."""
-    installed_info = next(
-        (m for m in installed_models if m["model"] == raw_model),
-        None
+    return (
+        (config["opt_model_name"], config["opt_system_prompt"]),
+        config["models"],
+        config["system_prompts"],
+        config["output_formatting"]
     )
 
-    size = None
-    parameter_size = None
-    quantization_level = None
+# ------------------------
+# Model Handling
+# ------------------------
 
-    if installed_info:
-        size = (f"{round(ByteSize(installed_info.get('size', 0)).to('GB'), 1)} GB"
-                if "size" in installed_info else None)
-        details = installed_info.get("details", {})
-        parameter_size = details.get("parameter_size")
-        quantization_level = details.get("quantization_level")
+def _process_model_info(rawModel: str, installedModels: list[dict]) -> ModelInfo:
+    installed = next((m for m in installedModels if m["model"] == rawModel), None)
+    size, parameterSize, quantLevel = None, None, None
 
-    return {
-        "modelName": raw_model,
-        "installed": bool(installed_info),
-        "size": size,
-        "parameterSize": parameter_size,
-        "quantizationLevel": quantization_level
-    }
+    if installed:
+        size = f"{round(ByteSize(installed.get('size', 0)).to('GB'), 1)} GB" if "size" in installed else None
+        details = installed.get("details", {})
+        parameterSize = details.get("parameter_size")
+        quantLevel = details.get("quantization_level")
 
+    return ModelInfo(
+        modelName=rawModel,
+        installed=bool(installed),
+        size=size,
+        parameterSize=parameterSize,
+        quantizationLevel=quantLevel
+    )
 
-def get_listed_models(rawModels, installed_only: bool = False) -> list[dict]:
-    """Retrieve and process model list from JSON file."""
-    try:
-        if not rawModels:
-            raise ValueError("No models found in the list")
+def get_listed_models(rawModels: list[str], installedOnly: bool = False) -> list[dict]:
+    if not rawModels:
+        raise ValueError("No models found in the list")
 
-        installed_models = ollama.list()["models"]
-        models = [_process_model_info(model, installed_models)
-                  for model in rawModels]
-
-        return [m for m in models if m["installed"]] if installed_only else models
-
-    except pd.errors.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON format in models list: {e}")
-
+    installed = ollama.list()["models"]
+    models = [_process_model_info(m, installed).__dict__ for m in rawModels]
+    return [m for m in models if m["installed"]] if installedOnly else models
 
 def download_model(model: dict) -> bool:
-    """Download a model and update its metadata."""
     try:
         print(f"\rDownloading: '{model['modelName']}'", end="")
         ollama.pull(model["modelName"])
-
-        # Update model info after successful download
-        installed_info = next(
-            (m for m in ollama.list()["models"]
-             if m["model"] == model["modelName"]),
-            None
-        )
-
-        if installed_info:
+        updated = next((m for m in ollama.list()["models"] if m["model"] == model["modelName"]), None)
+        if updated:
             model.update({
-                "size": f"{round(ByteSize(installed_info['size']).to('GB'), 1)} GB",
-                "parameterSize": installed_info["details"]["parameter_size"],
-                "quantizationLevel": installed_info["details"]["quantization_level"]
+                "size": f"{round(ByteSize(updated['size']).to('GB'), 1)} GB",
+                "parameterSize": updated["details"]["parameter_size"],
+                "quantizationLevel": updated["details"]["quantization_level"]
             })
             model.pop("installed", None)
             return True
-
         return False
-
     except (ollama.ResponseError, requests.RequestException) as e:
         print(f"\nDownload failed: {e}")
         return False
 
-
 def check_model(model: dict) -> bool:
-    """Check if model is installed and download if necessary."""
     if not model["installed"]:
         return download_model(model)
     model.pop("installed", None)
     return True
 
-
 def display_model_table(models: list[dict]) -> None:
-    """Display models in a formatted table."""
-    col_widths = {
+    colWidths = {
         "name": max(len(m["modelName"]) for m in models) + 4,
         "available": len("Not installed") + 4,
         "details": 15
@@ -212,94 +150,87 @@ def display_model_table(models: list[dict]) -> None:
 
     header = (
         f"{'ID'.rjust(4)}  "
-        f"{'NAME'.ljust(col_widths['name'])}"
-        f"{'AVAILABLE'.ljust(col_widths['available'])}"
-        f"{'SIZE'.ljust(col_widths['details']-5)}"
-        f"{'PARAMETERS'.ljust(col_widths['details'])}"
-        f"{'QUANTIZATION'.ljust(col_widths['details'])}"
+        f"{'NAME'.ljust(colWidths['name'])}"
+        f"{'AVAILABLE'.ljust(colWidths['available'])}"
+        f"{'SIZE'.ljust(colWidths['details']-5)}"
+        f"{'PARAMETERS'.ljust(colWidths['details'])}"
+        f"{'QUANTIZATION'.ljust(colWidths['details'])}"
     )
     print(header)
 
     for i, model in enumerate(models, 1):
         details = (
-            f"{'Installed'.ljust(col_widths['available'])}"
-            f"{(model['size'] or '').ljust(col_widths['details']-5)}"
-            f"{(model['parameterSize'] or '').ljust(col_widths['details'])}"
-            f"{(model['quantizationLevel'] or '').ljust(col_widths['details'])}"
+            "Installed".ljust(colWidths["available"])+
+            f"{model['size'] or ''}".ljust(colWidths["details"] - 5)+
+            f"{model['parameterSize'] or ''}".ljust(colWidths["details"])+
+            f"{model['quantizationLevel'] or ''}".ljust(colWidths["details"])
         ) if model["installed"] else "Not installed"
 
-        print(
-            f"{str(i).rjust(4)}. {model['modelName'].ljust(col_widths['name'])}{details}")
+        print(f"{str(i).rjust(4)}. {model['modelName'].ljust(colWidths['name'])}{details}")
 
-
-def choose_model(models, installed_only: bool = False) -> dict | None:
-    """Interactive model selection interface."""
+def choose_model(models: list[str], installedOnly: bool = False) -> list[dict] | None:
     try:
-        models = get_listed_models(models, installed_only)
-        if not models:
+        listed = get_listed_models(models, installedOnly)
+        if not listed:
             print("No models available to choose from.")
             return None
 
-        display_model_table(models)
-
+        display_model_table(listed)
         while True:
-            choice = input(f"\nSelect model (1 - {len(models)}): ").strip()
-            if choice.isnumeric() and 1 <= int(choice) <= len(models):
-                selected_model = models[int(choice) - 1]
-                return [selected_model] if check_model(selected_model) else None
+            choice = input(f"\nSelect model (1 - {len(listed)}): ").strip()
+            if choice.isnumeric() and 1 <= int(choice) <= len(listed):
+                selected = listed[int(choice) - 1]
+                return [selected] if check_model(selected) else None
             print("Invalid selection. Please try again.")
-
     except (FileNotFoundError, ValueError) as e:
         print(f"Error: {e}")
         return None
 
 
-def print_evaluated_results(results: dict, verbose: bool) -> None:
+def print_evaluated_results(results: BaseModel, verbose: bool) -> None:
     if verbose:
-        for id, eet in results["evaluatedEvolutionTexts"].items():
+        for id, eet in results.evaluatedTexts.items():
             print(
                 f"""
-            {id} - {eet["valid"]} {"-" * 20}
-            Model result: {eet["processedOutput"].get("principal_diagnostic")} ({eet["processedOutput"].get("icd_code")})
-            Correct result: {eet["correctOutput"]["principal_diagnostic"]}
+            {id} - {eet.valid} {"-" * 20}
+            Model result: {eet.processedOutput.principalDiagnostic} ({eet.processedOutput.icdCode})
+            Correct result: {eet.correctOutput["principal_diagnostic"]}
             """,
-                (
-                    f"Error: {eet['processedOutput'].get('processing_error')}\n"
-                    if eet["processedOutput"].get("processing_error")
-                    else ""
-                ),
-                (
-                    f"Error: {eet['processedOutput'].get('validation_error')}\n"
-                    if eet["processedOutput"].get("validation_error")
-                    else ""
-                ),
             )
+            if eet.processedOutput.processingError:
+                print(f"Error: {eet.processedOutput.processingError}")
+            if eet.processedOutput.validationError:
+                print(f"Error: {eet.processedOutput.validationError}")
 
-    print(
-        f"""
-        Accuracy: {results["performance"]["accuracy"]["percentage"]}% ({int((results["performance"]["accuracy"]["percentage"] / 100) * results["performance"]["totalTextsProcessed"])}/{results["performance"]["totalTextsProcessed"]})
-        Incorrect outputs: {results["performance"]["incorrectOutputs"]}% ({int((results["performance"]["incorrectOutputs"] / 100) * results["performance"]["totalTextsProcessed"])}/{results["performance"]["totalTextsProcessed"]})
-        Errors: {results["performance"]["errors"]}% ({int((results["performance"]["errors"] / 100) * results["performance"]["totalTextsProcessed"])}/{results["performance"]["totalTextsProcessed"]})
-        Batches: {results["performance"]["numBatches"]}
-        Total records processed: {results["performance"]["totalTextsProcessed"]}
-         
-        Duration: {results["performance"]["processingTime"]["duration"]} s.
-        Start time: {results["performance"]["processingTime"]["startDateTime"]}
-        End time: {results["performance"]["processingTime"]["endDateTime"]}
-    """
-    )
+    # Limpieza de la línea actual en consola
+    print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
+
+    perf = results.performance
+    accuracy = perf.accuracy
+    incorrect = perf.incorrectOutputs
+    errors = perf.errors
+    total = perf.totalTexts
+
+    print(f"""\r
+    Accuracy: {accuracy}% ({int((accuracy / 100) * total)}/{total})
+    Incorrect outputs: {incorrect}% ({int((incorrect / 100) * total)}/{total})
+    Errors: {errors}% ({int((errors / 100) * total)}/{total})
+    Batches: {perf.numBatches}
+    Total records processed: {total}
+    Duration: {perf.duration} s.
+    """)
 
 
-def update_results(resultsPath: Path, partialResult: dict, modelsResults: list):
+def update_results(resultsPath: Path, partialResult: dict, modelsResults: list) -> None:
     modelsResults.append(partialResult)
     modelsResults.sort(
         key=lambda x: x["performance"]["accuracy"]["percentage"], reverse=True)
     write_results(resultsPath, modelsResults)
 
 
-def write_results(resultsPath: str, results: dict):
+def write_results(resultsPath: str, results: BaseModel) -> None:
     with open(resultsPath, mode="w", encoding="utf-8") as file:
-        json.dump(results, file, indent=3, ensure_ascii=False)
+        json.dump(results.model_dump(), file, indent=3, ensure_ascii=False)
 
 
 def print_execution_progression(
@@ -308,7 +239,7 @@ def print_execution_progression(
     totalTexts: int,
     processedModels: int = 1,
     totalModels: int = 1,
-):
+) -> None:
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
     if totalModels == 1:
         print(
