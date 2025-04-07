@@ -18,7 +18,8 @@ def evaluate_analysis(
     formatPrompt: str,
     argsBatches: int,
     argsNumEvolutionTexts: int,
-    testingResultsDir: Path
+    testingResultsDir: Path,
+    verbose: bool,
 ):
     dateFormat = "%H:%M:%S %d-%m-%Y"
 
@@ -129,7 +130,7 @@ def evaluate_analysis(
     if len(model_s) == 1:
         if len(systemPrompt_s) == 1:
             evaluationResults = evaluate(model_s[0], 0)
-            print_evaluated_results(evaluationResults)
+            print_evaluated_results(evaluationResults, verbose)
             write_results(
                 testingResultsDir / f"results_{model_s[0]['modelName'].replace(':', '_')}.json", evaluationResults)
         else:
