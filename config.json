@@ -3,6 +3,7 @@
   "opt_system_prompt": 0,
   "models": [
     "llama3.2:3b-instruct-q8_0",
+    "gemma3:4b-it-q8_0",
     "llama3.1:8b-instruct-q8_0",
     "phi4:14b-q8_0",
     "phi4:14b-q4_K_M",

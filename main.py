@@ -16,20 +16,19 @@ def run_test_analysis_mode(configFile: Path, evolutionTexts: list, args):
     testingResultsDir = configFile.parent / "testing_results"
     testingResultsDir.mkdir(parents=True, exist_ok=True)
 
-    _, models, systemPrompts, outputFormatting = get_analyzer_configuration(configFile)
+    _, models, systemPrompts, outputFormatting = get_analyzer_configuration(
+        configFile)
 
     selectedModels = (
         get_listed_models(models, args.onlyInstalledModels)
         if args.mode == 1
         else choose_model(models, args.onlyInstalledModels)
     )
-    selectedPrompts = systemPrompts if args.testPrompts else [systemPrompts[0]]
 
     evaluate_analysis(
         selectedModels,
         evolutionTexts,
-        selectedPrompts,
-        outputFormatting,
+        (args.testPrompts, systemPrompts,outputFormatting),
         args.numBatches,
         args.numEvolutionTexts,
         testingResultsDir,
@@ -41,7 +40,8 @@ def run_analysis_mode(configFile: Path, evolutionTexts: list, args):
     resultsDir = configFile.parent / "results"
     resultsDir.mkdir(parents=True, exist_ok=True)
 
-    opt, models, systemPrompts, outputFormatting = get_analyzer_configuration(configFile)
+    opt, models, systemPrompts, outputFormatting = get_analyzer_configuration(
+        configFile)
 
     results = evolution_text_analysis(
         models[opt[0]],
@@ -56,7 +56,7 @@ def run_analysis_mode(configFile: Path, evolutionTexts: list, args):
 
 if __name__ == "__main__":
     if not check_ollama_connected():
-        print("❌ No se detecta conexión con Ollama.")
+        print("No connection to Ollama detected.")
         exit(1)
 
     basePath = Path(__file__).parent

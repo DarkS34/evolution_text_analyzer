@@ -48,7 +48,13 @@ def get_args(numEvolutionTexts: int):
     parser.add_argument("-i", "--installed", action="store_true", dest="onlyInstalledModels")
     parser.add_argument("-p", "--test-prompts", action="store_true", dest="testPrompts")
     parser.add_argument("-v", "--verbose", action="store_true", dest="verboseMode")
-    return parser.parse_args()
+
+    args = parser.parse_args()
+
+
+    return args
+
+
 
 # ------------------------
 # File and Config Handling
@@ -187,7 +193,7 @@ def choose_model(models: list[str], installedOnly: bool = False) -> list[dict] |
         return None
 
 
-def print_evaluated_results(results: BaseModel, verbose: bool) -> None:
+def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> None:
     if verbose:
         for id, eet in results.evaluatedTexts.items():
             print(
@@ -212,26 +218,34 @@ def print_evaluated_results(results: BaseModel, verbose: bool) -> None:
     total = perf.totalTexts
 
     print(f"""\r
-    Accuracy: {accuracy}% ({int((accuracy / 100) * total)}/{total})
-    Incorrect outputs: {incorrect}% ({int((incorrect / 100) * total)}/{total})
-    Errors: {errors}% ({int((errors / 100) * total)}/{total})
-    Batches: {perf.numBatches}
-    Total records processed: {total}
-    Duration: {perf.duration} s.
-    """)
+    Model: {model["modelName"]}
+    Performance:
+    ------------------
+        Accuracy: {accuracy}% ({int((accuracy / 100) * total)}/{total})
+        Incorrect outputs: {incorrect}% ({int((incorrect / 100) * total)}/{total})
+        Errors: {errors}% ({int((errors / 100) * total)}/{total})
+        
+        Total records processed: {total}
+        Duration: {perf.duration} s.
+    -------------------
+    """, end="", flush=True)
 
 
 def update_results(resultsPath: Path, partialResult: dict, modelsResults: list) -> None:
     modelsResults.append(partialResult)
     modelsResults.sort(
-        key=lambda x: x["performance"]["accuracy"]["percentage"], reverse=True)
+        key=lambda x: x.performance.accuracy, reverse=True)
     write_results(resultsPath, modelsResults)
 
 
-def write_results(resultsPath: str, results: BaseModel) -> None:
+def write_results(resultsPath: str, results: dict | BaseModel | list[BaseModel]) -> None:
     with open(resultsPath, mode="w", encoding="utf-8") as file:
-        json.dump(results.model_dump(), file, indent=3, ensure_ascii=False)
-
+        if isinstance(results, list):
+            results = [result.model_dump(exclude_none=True) for result in results]
+        elif isinstance(results, BaseModel):
+            results = results.model_dump(exclude_none=True)
+            
+        json.dump(results, file, indent=3, ensure_ascii=False)
 
 def print_execution_progression(
     modelName: str,
