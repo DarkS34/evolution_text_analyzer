@@ -104,9 +104,8 @@ def calculate_metrics(
 
 def evaluate_model(
     modelInfo: dict,
-    evolutionTexts: list[dict],
     prompt: str,
-    formatPrompt: str,
+    evolutionTexts: list[dict],
     numBatches: int,
     numTexts: int,
     promptIndex: int,
@@ -116,8 +115,8 @@ def evaluate_model(
     start = time.time()
     processed = evolution_text_analysis(
         modelInfo["modelName"],
+        prompt,
         evolutionTexts,
-        prompt + formatPrompt,
         numBatches,
         numTexts,
     )
@@ -148,52 +147,49 @@ def evaluate_model(
 
 def evaluate_analysis(
     models: list[dict],
+    promptsInfo: tuple[bool, list[dict]],
+    optPrompt: int,
     evolutionTexts: list[dict],
-    promptInfo: tuple[bool, list[str], str],
     numBatches: int,
     numTexts: int,
     testingResultsDir: Path,
     verbose: bool
 ):
-    testPrompts, systemPrompts, outputFormatting = promptInfo
-    
+    testPrompts, prompts = promptsInfo
+
     if len(models) == 1:
         if not testPrompts:
             evaluationResults = evaluate_model(
-                models[0], evolutionTexts, systemPrompts[0], outputFormatting, numBatches, numTexts, 0)
-            print_evaluated_results(models[0],evaluationResults, verbose)
+                models[0], prompts[optPrompt], evolutionTexts, numBatches, numTexts, 0)
+
+            print_evaluated_results(models[0], evaluationResults, verbose)
+
             write_results(
-                testingResultsDir /
-                f"results_{models[0]['modelName'].replace(':', '_')}.json",
-                evaluationResults
-            )
+                testingResultsDir/f"results_{models[0]['modelName'].replace(':', '_')}.json", evaluationResults)
         else:
             allEvaluationsResults = []
-            for promptIndex, prompt in enumerate(systemPrompts):
+            for promptIndex, prompt in enumerate(prompts):
                 evaluationResults = evaluate_model(
-                    models[0], evolutionTexts, prompt, outputFormatting, numBatches, numTexts, promptIndex)
+                    models[0], prompt, evolutionTexts, numBatches, numTexts, promptIndex)
+
                 update_results(
-                    testingResultsDir /
-                    f"results_{models[0]['modelName'].replace(':', '_')}_all_prompts.json",
-                    evaluationResults,
-                    allEvaluationsResults
-                )
+                    testingResultsDir/f"results_{models[0]['modelName'].replace(':', '_')}_all_prompts.json", evaluationResults, allEvaluationsResults)
     else:
         allEvaluationsResults = []
         for model in models:
             if check_model(model):
-                if testPrompts:
+                if not testPrompts:
                     evaluationResults = evaluate_model(
-                        model, evolutionTexts, systemPrompts[0], outputFormatting, numBatches, numTexts, 0)
+                        model, prompts[optPrompt], evolutionTexts, numBatches, numTexts, 0)
                     update_results(
                         testingResultsDir / "results_allListedModels.json",
                         evaluationResults,
                         allEvaluationsResults
                     )
                 else:
-                    for promptIndex, prompt in enumerate(systemPrompts):
+                    for promptIndex, prompt in enumerate(prompts):
                         evaluationResults = evaluate_model(
-                            model, evolutionTexts, prompt, outputFormatting, numBatches, numTexts, promptIndex)
+                            model, prompt, evolutionTexts, numBatches, numTexts, promptIndex)
                         update_results(
                             testingResultsDir / "results_allListedModels_all_prompts.json",
                             evaluationResults,
