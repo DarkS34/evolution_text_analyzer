@@ -10,8 +10,6 @@ from ._custom_parser import CustomParser
 
 from .auxiliary_functions import print_execution_progression
 
-
-
 def evolution_text_analysis(
     modelName: str,
     evolutionTexts: list,
@@ -46,7 +44,7 @@ def evolution_text_analysis(
 
     #Parser
     parser = CustomParser()
-
+    
     # Chain configuration
     chain = prompt | model | parser
 
