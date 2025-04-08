@@ -106,8 +106,10 @@ def model_validation(modelName: str, diag1: str, diag2: str):
 def validate_result(modelName: str, processedDiag: str, correctDiag: str):
     processedDiagNorm = normalize_name(processedDiag)
     correctDiagNorm = normalize_name(correctDiag)
-
-    if (processedDiagNorm == correctDiagNorm) or processedDiagNorm.find(correctDiagNorm) != -1 or correctDiagNorm.find(processedDiagNorm) != -1:
+    
+    staticalCond = (processedDiagNorm == correctDiagNorm) or processedDiagNorm.find(correctDiagNorm) != -1 or  correctDiagNorm.find(processedDiagNorm) != -1
+    
+    if staticalCond:
         return True
     else:
         return model_validation(modelName, processedDiagNorm, correctDiagNorm)
