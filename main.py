@@ -12,12 +12,9 @@ from evolution_text_analyzer.analyzer import evolution_text_analysis
 from evolution_text_analyzer.tester import evaluate_analysis
 
 
-def run_test_analysis_mode(configFile: Path, evolutionTexts: list, args):
+def run_test_analysis_mode(models: list[str], prompts: list[dict], optPrompt: int, evolutionTexts: list, args):
     testingResultsDir = configFile.parent / "testing_results"
     testingResultsDir.mkdir(parents=True, exist_ok=True)
-
-    _, models, systemPrompts, outputFormatting = get_analyzer_configuration(
-        configFile)
 
     selectedModels = (
         get_listed_models(models, args.onlyInstalledModels)
@@ -27,8 +24,9 @@ def run_test_analysis_mode(configFile: Path, evolutionTexts: list, args):
 
     evaluate_analysis(
         selectedModels,
+        (args.testPrompts, prompts),
+        optPrompt,
         evolutionTexts,
-        (args.testPrompts, systemPrompts,outputFormatting),
         args.numBatches,
         args.numEvolutionTexts,
         testingResultsDir,
@@ -36,17 +34,14 @@ def run_test_analysis_mode(configFile: Path, evolutionTexts: list, args):
     )
 
 
-def run_analysis_mode(configFile: Path, evolutionTexts: list, args):
+def run_analysis_mode(model: str, prompt: dict, evolutionTexts: list, args):
     resultsDir = configFile.parent / "results"
     resultsDir.mkdir(parents=True, exist_ok=True)
 
-    opt, models, systemPrompts, outputFormatting = get_analyzer_configuration(
-        configFile)
-
     results = evolution_text_analysis(
-        models[opt[0]],
+        model,
+        prompt,
         evolutionTexts,
-        systemPrompts[opt[1]] + outputFormatting,
         args.numBatches,
         args.numEvolutionTexts,
     )
@@ -63,10 +58,16 @@ if __name__ == "__main__":
     evolutionTextsFile = basePath / "evolution_texts_resolved.csv"
     configFile = basePath / "config.json"
 
+    config = get_analyzer_configuration(
+        configFile)
+
+    opt, models, prompts = config["optimal"], config["models"], config["prompts"]
+
     evolutionTexts = get_evolution_texts(evolutionTextsFile)
     args = get_args(len(evolutionTexts))
-
+    
     if args.test or args.testPrompts:
-        run_test_analysis_mode(configFile, evolutionTexts, args)
+        run_test_analysis_mode(models, prompts, opt["prompt"], evolutionTexts, args)
     else:
-        run_analysis_mode(configFile, evolutionTexts, args)
+        run_analysis_mode(
+            models[opt[0]], prompts[opt[1]], evolutionTexts, args)

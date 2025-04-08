@@ -46,7 +46,7 @@ def get_args(numEvolutionTexts: int):
     parser.add_argument("-n", "--num-texts", type=int, default=numEvolutionTexts, dest="numEvolutionTexts")
     parser.add_argument("-t", "--test", action="store_true", dest="test")
     parser.add_argument("-i", "--installed", action="store_true", dest="onlyInstalledModels")
-    parser.add_argument("-p", "--test-prompts", action="store_true", dest="testPrompts")
+    parser.add_argument("-tp", "--test-prompts", action="store_true", dest="testPrompts")
     parser.add_argument("-v", "--verbose", action="store_true", dest="verboseMode")
 
     args = parser.parse_args()
@@ -78,21 +78,13 @@ def get_evolution_texts(path: Path):
 
     return texts
 
-def get_analyzer_configuration(path: Path) -> tuple[tuple[str, str], list[str], list[str], str]:
+def get_analyzer_configuration(path: Path) -> tuple[tuple[str, str], list[str], list[str]]:
     if not path.exists():
         raise FileNotFoundError(f"File '{path}' not found")
     try:
-        config = pd.read_json(path, typ="series").to_dict()
+       return pd.read_json(path, typ="series").to_dict()
     except ValueError:
         raise ValueError(f"Invalid JSON format in file '{path}'")
-
-    return (
-        (config["opt_model_name"], config["opt_system_prompt"]),
-        config["models"],
-        config["system_prompts"],
-        config["output_formatting"]
-    )
-
 # ------------------------
 # Model Handling
 # ------------------------

@@ -6,25 +6,24 @@ from langchain.prompts import (
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_ollama.llms import OllamaLLM
 from pydantic import BaseModel
-from ._custom_parser import CustomParser
 
+from ._custom_parser import CustomParser
 from .auxiliary_functions import print_execution_progression
+
 
 def evolution_text_analysis(
     modelName: str,
+    prompts: dict[str],
     evolutionTexts: list,
-    systemPrompt: str,
     numBatches: int,
     totalEvolutionTextsToProcess: int,
 ):
     model = OllamaLLM(
         model=modelName,
         temperature=0,
-        num_ctx=8192,
-        top_p=0.9,
         verbose=False,
         format="json",
-        seed=123,
+        seed=1,
     )
 
     totalEvolutionTextsToProcess = min(
@@ -35,10 +34,8 @@ def evolution_text_analysis(
     # Prompt
     prompt = ChatPromptTemplate(
         messages=[
-            SystemMessagePromptTemplate.from_template(systemPrompt),
-            HumanMessagePromptTemplate.from_template(
-                'El historial del paciente:\n\n"""\n{evolution_text}\n"""'
-            ),
+            SystemMessagePromptTemplate.from_template(prompts["system_prompt"]),
+            HumanMessagePromptTemplate.from_template(prompts["human_prompt"]),
         ],
     )
 
