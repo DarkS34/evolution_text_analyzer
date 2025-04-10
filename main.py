@@ -1,14 +1,16 @@
 from pathlib import Path
+
+from evolution_text_analyzer.analyzer import evolution_text_analysis
 from evolution_text_analyzer.auxiliary_functions import (
     check_ollama_connected,
+    choose_model,
+    get_analyzer_configuration,
     get_args,
     get_evolution_texts,
     get_listed_models,
-    choose_model,
-    get_analyzer_configuration,
+    check_chroma_db,
     write_results,
 )
-from evolution_text_analyzer.analyzer import evolution_text_analysis
 from evolution_text_analyzer.tester import evaluate_analysis
 
 
@@ -53,7 +55,7 @@ if __name__ == "__main__":
     if not check_ollama_connected():
         print("No connection to Ollama detected.")
         exit(1)
-
+    check_chroma_db()
     basePath = Path(__file__).parent
     evolutionTextsFile = basePath / "evolution_texts_resolved.csv"
     configFile = basePath / "config.json"
@@ -65,9 +67,10 @@ if __name__ == "__main__":
 
     evolutionTexts = get_evolution_texts(evolutionTextsFile)
     args = get_args(len(evolutionTexts))
-    
+
     if args.test or args.testPrompts:
-        run_test_analysis_mode(models, prompts, opt["prompt"], evolutionTexts, args)
+        run_test_analysis_mode(
+            models, prompts, opt["prompt"], evolutionTexts, args)
     else:
         run_analysis_mode(
             models[opt[0]], prompts[opt[1]], evolutionTexts, args)

@@ -2,15 +2,17 @@
 
 This module does stuff.
 """
-from pydantic import BaseModel
-from pathlib import Path
-from argparse import ArgumentParser
-from pydantic import ByteSize
+import json
 import os
+from argparse import ArgumentParser
+from pathlib import Path
+
 import ollama
 import pandas as pd
 import requests
-import json
+from langchain_chroma import Chroma
+from langchain_ollama import OllamaEmbeddings
+from pydantic import BaseModel, ByteSize
 
 # ------------------------
 # Data Models
@@ -28,6 +30,7 @@ class ModelInfo(BaseModel):
 # Connection & Argument Handling
 # ------------------------
 
+
 def check_ollama_connected(url="http://localhost:11434") -> bool:
     try:
         response = requests.get(url)
@@ -39,26 +42,45 @@ def check_ollama_connected(url="http://localhost:11434") -> bool:
         print(f"Error:\n{e}.\n\nOllama is not running.\n")
         return False
 
+
 def get_args(numEvolutionTexts: int):
-    parser = ArgumentParser(description="Script for processing with labeled modes.", allow_abbrev=False)
-    parser.add_argument("-m", "--mode", type=int, choices=[1, 2], default=1, help="Operation mode (1 or 2)")
-    parser.add_argument("-b", "--batches", type=int, default=1, dest="numBatches")
-    parser.add_argument("-n", "--num-texts", type=int, default=numEvolutionTexts, dest="numEvolutionTexts")
+    parser = ArgumentParser(
+        description="Script for processing with labeled modes.", allow_abbrev=False)
+    parser.add_argument("-m", "--mode", type=int,
+                        choices=[1, 2], default=1, help="Operation mode (1 or 2)")
+    parser.add_argument("-b", "--batches", type=int,
+                        default=1, dest="numBatches")
+    parser.add_argument("-n", "--num-texts", type=int,
+                        default=numEvolutionTexts, dest="numEvolutionTexts")
     parser.add_argument("-t", "--test", action="store_true", dest="test")
-    parser.add_argument("-i", "--installed", action="store_true", dest="onlyInstalledModels")
-    parser.add_argument("-tp", "--test-prompts", action="store_true", dest="testPrompts")
-    parser.add_argument("-v", "--verbose", action="store_true", dest="verboseMode")
+    parser.add_argument("-i", "--installed",
+                        action="store_true", dest="onlyInstalledModels")
+    parser.add_argument("-tp", "--test-prompts",
+                        action="store_true", dest="testPrompts")
+    parser.add_argument("-v", "--verbose",
+                        action="store_true", dest="verboseMode")
 
     args = parser.parse_args()
 
-
     return args
-
 
 
 # ------------------------
 # File and Config Handling
 # ------------------------
+
+def _color_text(text, color="green"):
+    colors = {
+        "red": "\033[91m",
+        "green": "\033[92m",
+        "yellow": "\033[93m",
+        "bold": "\033[1m",
+        # "blue": "\033[94m",
+        # "magenta": "\033[95m",
+        # "cyan": "\033[96m",
+    }
+    return f"{colors.get(color, '')}{text}\033[0m"
+
 
 def get_evolution_texts(path: Path):
     if not path.exists():
@@ -67,7 +89,8 @@ def get_evolution_texts(path: Path):
     ext = path.suffix
     with open(path, mode="r", encoding="utf-8") as file:
         if ext == ".csv":
-            texts = pd.read_csv(file, sep="|", quotechar="'").to_dict(orient="records")
+            texts = pd.read_csv(file, sep="|", quotechar="'").to_dict(
+                orient="records")
         elif ext == ".json":
             texts = pd.read_json(file)
         else:
@@ -78,19 +101,65 @@ def get_evolution_texts(path: Path):
 
     return texts
 
+
 def get_analyzer_configuration(path: Path) -> tuple[tuple[str, str], list[str], list[str]]:
     if not path.exists():
         raise FileNotFoundError(f"File '{path}' not found")
     try:
-       return pd.read_json(path, typ="series").to_dict()
+        return pd.read_json(path, typ="series").to_dict()
     except ValueError:
         raise ValueError(f"Invalid JSON format in file '{path}'")
+
+
+def check_chroma_db(indexPath: str = "icd_vector_db", csvPath: str = "icd_dataset.csv", modelName: str = "nomic-embed-text:latest") -> bool:
+    indexDir = Path(indexPath)
+
+    if indexDir.exists() and any(indexDir.glob("*")):
+        return True
+    
+    print(
+        f"{_color_text('[INFO]')} Indice Chroma no encontrado. Creando nuevo desde {csvPath}...\r", end="")
+    df = pd.read_csv(csvPath)
+    df["text"] = df["code"] + ": " + df["description"]
+    texts = df["text"].tolist()
+    metadatas = df[["code", "description"]].to_dict(orient="records")
+
+    try:
+        embeddings = OllamaEmbeddings(model=modelName)
+        Chroma.from_texts(
+        texts=texts,
+        embedding=embeddings,
+        metadatas=metadatas,
+        persist_directory=str(indexDir)
+        )
+        
+        return True
+    except Exception as e:
+        print(f"\n{_color_text('[ERROR]', 'red')} Failed to create Chroma DB: {e}")
+        return False
+
+
+def load_chroma_db(indexPath: str = "icd_vector_db", modelName: str = "nomic-embed-text:latest") -> Chroma:
+    indexDir = Path(indexPath)
+
+    if not indexDir.exists() or not any(indexDir.glob("*")):
+        raise FileNotFoundError(
+            f"No se encontró el índice Chroma en {indexDir}. ¿Olvidaste ejecutar `create_chroma_db_if_needed()`?")
+
+    embeddings = OllamaEmbeddings(model=modelName)
+    return Chroma(
+        persist_directory=str(indexDir),
+        embedding_function=embeddings
+    )
+
 # ------------------------
 # Model Handling
 # ------------------------
 
+
 def _process_model_info(rawModel: str, installedModels: list[dict]) -> ModelInfo:
-    installed = next((m for m in installedModels if m["model"] == rawModel), None)
+    installed = next(
+        (m for m in installedModels if m["model"] == rawModel), None)
     size, parameterSize, quantLevel = None, None, None
 
     if installed:
@@ -107,6 +176,7 @@ def _process_model_info(rawModel: str, installedModels: list[dict]) -> ModelInfo
         quantizationLevel=quantLevel
     )
 
+
 def get_listed_models(rawModels: list[str], installedOnly: bool = False) -> list[dict]:
     if not rawModels:
         raise ValueError("No models found in the list")
@@ -115,11 +185,13 @@ def get_listed_models(rawModels: list[str], installedOnly: bool = False) -> list
     models = [_process_model_info(m, installed).__dict__ for m in rawModels]
     return [m for m in models if m["installed"]] if installedOnly else models
 
+
 def download_model(model: dict) -> bool:
     try:
         print(f"\rDownloading: '{model['modelName']}'", end="")
         ollama.pull(model["modelName"])
-        updated = next((m for m in ollama.list()["models"] if m["model"] == model["modelName"]), None)
+        updated = next((m for m in ollama.list()[
+                       "models"] if m["model"] == model["modelName"]), None)
         if updated:
             model.update({
                 "size": f"{round(ByteSize(updated['size']).to('GB'), 1)} GB",
@@ -133,11 +205,13 @@ def download_model(model: dict) -> bool:
         print(f"\nDownload failed: {e}")
         return False
 
+
 def check_model(model: dict) -> bool:
     if not model["installed"]:
         return download_model(model)
     model.pop("installed", None)
     return True
+
 
 def display_model_table(models: list[dict]) -> None:
     colWidths = {
@@ -158,13 +232,15 @@ def display_model_table(models: list[dict]) -> None:
 
     for i, model in enumerate(models, 1):
         details = (
-            "Installed".ljust(colWidths["available"])+
-            f"{model['size'] or ''}".ljust(colWidths["details"] - 5)+
-            f"{model['parameterSize'] or ''}".ljust(colWidths["details"])+
+            "Installed".ljust(colWidths["available"]) +
+            f"{model['size'] or ''}".ljust(colWidths["details"] - 5) +
+            f"{model['parameterSize'] or ''}".ljust(colWidths["details"]) +
             f"{model['quantizationLevel'] or ''}".ljust(colWidths["details"])
         ) if model["installed"] else "Not installed"
 
-        print(f"{str(i).rjust(4)}. {model['modelName'].ljust(colWidths['name'])}{details}")
+        print(
+            f"{str(i).rjust(4)}. {model['modelName'].ljust(colWidths['name'])}{details}")
+
 
 def choose_model(models: list[str], installedOnly: bool = False) -> list[dict] | None:
     try:
@@ -179,7 +255,7 @@ def choose_model(models: list[str], installedOnly: bool = False) -> list[dict] |
             if choice.isnumeric() and 1 <= int(choice) <= len(listed):
                 selected = listed[int(choice) - 1]
                 return [selected] if check_model(selected) else None
-            print("Invalid selection. Please try again.")
+            print(f"{_color_text('[ERROR]', 'red')}Invalid selection. Please try again.")
     except (FileNotFoundError, ValueError) as e:
         print(f"Error: {e}")
         return None
@@ -210,12 +286,12 @@ def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> N
     total = perf.totalTexts
 
     print(f"""\r
-    Model: {model["modelName"]}
+    Model: {_color_text(model["modelName"], 'bold')}
     Performance:
     ------------------
-        Accuracy: {accuracy}% ({int((accuracy / 100) * total)}/{total})
+        {_color_text('Accuracy')}: {accuracy}% ({int((accuracy / 100) * total)}/{total})
         Incorrect outputs: {incorrect}% ({int((incorrect / 100) * total)}/{total})
-        Errors: {errors}% ({int((errors / 100) * total)}/{total})
+        {_color_text('Errors', 'red')}: {errors}% ({int((errors / 100) * total)}/{total})
         
         Total records processed: {total}
         Duration: {perf.duration} s.
@@ -233,11 +309,13 @@ def update_results(resultsPath: Path, partialResult: dict, modelsResults: list) 
 def write_results(resultsPath: str, results: dict | BaseModel | list[BaseModel]) -> None:
     with open(resultsPath, mode="w", encoding="utf-8") as file:
         if isinstance(results, list):
-            results = [result.model_dump(exclude_none=True) for result in results]
+            results = [result.model_dump(exclude_none=True)
+                       for result in results]
         elif isinstance(results, BaseModel):
             results = results.model_dump(exclude_none=True)
-            
+
         json.dump(results, file, indent=3, ensure_ascii=False)
+
 
 def print_execution_progression(
     modelName: str,
@@ -249,13 +327,13 @@ def print_execution_progression(
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
     if totalModels == 1:
         print(
-            f"\r{modelName} - Evolution texts processed {processedTexts}/{totalTexts}",
+            f"\r{_color_text('[PROCESSING]')} {modelName} - Evolution texts processed {processedTexts}/{totalTexts}",
             end="",
             flush=True,
         )
     else:
         print(
-            f"\rModels processed {processedModels}/{totalModels} | Currently {modelName} - Evolution texts processed {processedTexts}/{totalTexts}",
+            f"\r{_color_text('[PROCESSING]')} Models processed {processedModels}/{totalModels} | Currently {modelName} - Evolution texts processed {processedTexts}/{totalTexts}",
             end="",
             flush=True,
         )
