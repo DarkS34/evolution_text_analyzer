@@ -69,29 +69,27 @@ def evolution_text_analysis(
     )
 
     # Parser
-    parser = CustomParser()
+    parser = CustomParser(modelName)
 
     # Expansion chain
     expandChain = expandPrompt | expansionModel | StrOutputParser()
 
     # Diagnosis chain
-    diagnosis_chain = diagnosisPrompt | diagnosticModel | parser
+    diagnosisChain = diagnosisPrompt | diagnosticModel | parser
 
     analysisChain = (
         expandChain
         | RunnableLambda(lambda x: {"evolution_text": x})
-        | diagnosis_chain
+        | diagnosisChain
     )
 
     # Función para procesar un registro
     def process_evolution_text(evolutionText: str):
         try:
-            processedChain: BaseModel = analysisChain.invoke(
-                {"input_text": evolutionText})
-            return processedChain.model_dump()
+            return analysisChain.invoke({"input_text": evolutionText})
         except Exception as e:
             return {
-                "principla_diagnostic": None,
+                "principal_diagnostic": None,
                 "icd_code": None,
                 "processing_error": str(e),
             }

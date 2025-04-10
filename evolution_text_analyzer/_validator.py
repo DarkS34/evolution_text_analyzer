@@ -109,7 +109,4 @@ def validate_result(modelName: str, processedDiag: str, correctDiag: str):
     
     staticalCond = (processedDiagNorm == correctDiagNorm) or processedDiagNorm.find(correctDiagNorm) != -1 or  correctDiagNorm.find(processedDiagNorm) != -1
     
-    if staticalCond:
-        return True
-    else:
-        return model_validation(modelName, processedDiagNorm, correctDiagNorm)
+    return staticalCond
