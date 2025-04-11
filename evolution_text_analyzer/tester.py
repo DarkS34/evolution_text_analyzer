@@ -106,6 +106,8 @@ def evaluate_model(
     modelInfo: dict,
     prompt: str,
     evolutionTexts: list[dict],
+    chromaDB,
+    expansionMode: bool,
     numBatches: int,
     numTexts: int,
     promptIndex: int,
@@ -117,6 +119,8 @@ def evaluate_model(
         modelInfo["modelName"],
         prompt,
         evolutionTexts,
+        chromaDB,
+        expansionMode,
         numBatches,
         numTexts,
     )
@@ -150,9 +154,11 @@ def evaluate_analysis(
     promptsInfo: tuple[bool, list[dict]],
     optPrompt: int,
     evolutionTexts: list[dict],
+    testingResultsDir: Path,
+    chromaDB,
+    expansionMode: bool,
     numBatches: int,
     numTexts: int,
-    testingResultsDir: Path,
     verbose: bool
 ):
     testPrompts, prompts = promptsInfo
@@ -160,7 +166,7 @@ def evaluate_analysis(
     if len(models) == 1:
         if not testPrompts:
             evaluationResults = evaluate_model(
-                models[0], prompts[optPrompt], evolutionTexts, numBatches, numTexts, 0)
+                models[0], prompts[optPrompt], evolutionTexts, chromaDB, expansionMode, numBatches, numTexts, 0)
 
             print_evaluated_results(models[0], evaluationResults, verbose)
 
@@ -170,7 +176,7 @@ def evaluate_analysis(
             allEvaluationsResults = []
             for promptIndex, prompt in enumerate(prompts):
                 evaluationResults = evaluate_model(
-                    models[0], prompt, evolutionTexts, numBatches, numTexts, promptIndex)
+                    models[0], prompt, evolutionTexts, chromaDB, expansionMode, numBatches, numTexts, promptIndex)
 
                 update_results(
                     testingResultsDir/f"results_{models[0]['modelName'].replace(':', '_')}_all_prompts.json", evaluationResults, allEvaluationsResults)
@@ -180,7 +186,7 @@ def evaluate_analysis(
             if check_model(model):
                 if not testPrompts:
                     evaluationResults = evaluate_model(
-                        model, prompts[optPrompt], evolutionTexts, numBatches, numTexts, 0)
+                        model, prompts[optPrompt], evolutionTexts, chromaDB, expansionMode, numBatches, numTexts, 0)
                     update_results(
                         testingResultsDir / "results_allListedModels.json",
                         evaluationResults,
@@ -189,7 +195,7 @@ def evaluate_analysis(
                 else:
                     for promptIndex, prompt in enumerate(prompts):
                         evaluationResults = evaluate_model(
-                            model, prompt, evolutionTexts, numBatches, numTexts, promptIndex)
+                            model, prompt, evolutionTexts, chromaDB, expansionMode, numBatches, numTexts, promptIndex)
                         update_results(
                             testingResultsDir / "results_allListedModels_all_prompts.json",
                             evaluationResults,

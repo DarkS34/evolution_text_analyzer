@@ -1,5 +1,6 @@
 from typing import Dict, Optional
 
+from langchain_chroma import Chroma
 import pandas as pd
 from langchain.output_parsers import PydanticOutputParser
 from langchain.prompts import (
@@ -7,12 +8,9 @@ from langchain.prompts import (
     HumanMessagePromptTemplate,
     SystemMessagePromptTemplate,
 )
-from langchain_ollama import OllamaEmbeddings
 from langchain_core.outputs import Generation
 from langchain_ollama.llms import OllamaLLM
 from pydantic import BaseModel, Field, PrivateAttr
-
-from evolution_text_analyzer.auxiliary_functions import load_chroma_db
 
 
 class _EvolutionTextDiagnosticSchema(BaseModel):
@@ -31,49 +29,44 @@ class _EvolutionTextDiagnosticSchema(BaseModel):
 
 
 class diagnosticNormalizerRAG:
-    def __init__(self, csv_path: str, model_name: str):
-        """
-        Inicializa el sistema RAG para códigos CIE-10
-
-        Args:
-            csv_path: Ruta al archivo CSV con los códigos CIE-10
-            model_name: Nombre del modelo en Ollama
-        """
+    def __init__(self, csv_path: str, llm: OllamaLLM, vector_store: Chroma):
         self.df = pd.read_csv(csv_path)
         self.df_search = self.df.copy()
-
         self.df_search['text'] = self.df_search['code'] + \
             ': ' + self.df_search['description']
-
-        # Comprobar que existe el modelo nomic-embed-text:latest
-
-        self.embeddings = OllamaEmbeddings(model="nomic-embed-text:latest")
-        self.vectorstore = load_chroma_db()
-        self.llm = OllamaLLM(model=model_name)
+        self.vectorstore = vector_store
+        self.llm = llm
 
     def normalize_diagnostic(self, principal_diagnostic: str, icd_code: str) -> Dict[str, str]:
-        # 1. Preprocesamiento de entrada
         normalized_code = icd_code.strip().replace(".", "").replace("-", "").upper()
         normalized_diagnostic = principal_diagnostic.strip()
 
-        # 2. Intentar coincidencia exacta en el DataFrame
-        exact_match = self.df[
-            self.df['code'].str.contains(normalized_code, case=False, na=False) |
+        description_matches = self.df[
             self.df['description'].str.contains(
                 normalized_diagnostic, case=False, na=False)
+        ]
+
+        code_matches = self.df[
+            self.df['code'].str.contains(normalized_code, case=False, na=False)
+        ]
+
+        common_matches = description_matches.merge(code_matches, how='inner')
+
+        exact_match = common_matches[
+            (common_matches['description'].str.lower() == normalized_diagnostic.lower()) &
+            (common_matches['code'].str.upper() == normalized_code.upper())
         ]
 
         if not exact_match.empty:
             match = exact_match.iloc[0]
             return {
-                "icd_code": normalized_code,
+                "icd_code": match["code"],
                 "principal_diagnostic": match["description"]
             }
 
-        # 3. Búsqueda vectorial con RAG
         query = f"{normalized_code}: {normalized_diagnostic}"
         similar_docs = self.vectorstore.similarity_search(query, k=5)
-        
+
         if not similar_docs:
             return {
                 "icd_code": normalized_code,
@@ -82,7 +75,7 @@ class diagnosticNormalizerRAG:
 
         similar_codes = "\n".join(
             f"- {doc.page_content}" for doc in similar_docs)
-        
+
         print(similar_codes)
 
         # 4. Crear prompt
@@ -95,8 +88,8 @@ class diagnosticNormalizerRAG:
                     """
                     Necesito normalizar el siguiente diagnóstico médico con su código CIE-10 correspondiente:
 
-                    Código CIE-10 original: {icd_code}
-                    Nombre enfermedad principal original: {principal_diagnostic}
+                    El diagnóstico original es:
+                    {icd_code}: {principal_diagnostic}
 
                     Basado en la siguiente lista de códigos CIE-10 similares:
                     {similar_codes}
@@ -142,29 +135,32 @@ class diagnosticNormalizerRAG:
 
 
 class CustomParser(PydanticOutputParser):
-    _model_name: str = PrivateAttr()
+    _llm: Optional[OllamaLLM] = PrivateAttr()
     _csv_path: str = PrivateAttr()
+    _vector_store: Optional[Chroma] = PrivateAttr()
 
-    def __init__(self, model_name: str = None, csv_path: str = "icd_dataset.csv", **kwargs):
+    def __init__(self, chromaDB=None, llm: OllamaLLM = None, csv_path: str = "icd_dataset.csv", **kwargs):
         kwargs.setdefault("pydantic_object", _EvolutionTextDiagnosticSchema)
         super().__init__(**kwargs)
-        self._model_name = model_name
+        self._vector_store = chromaDB
+        self._llm = llm
         self._csv_path = csv_path
 
     def parse_result(self, result: list[Generation], *, partial: bool = False) -> Optional[_EvolutionTextDiagnosticSchema]:
         try:
-            # Obtenemos el objeto Pydantic usando la implementación base
             parsed: BaseModel = super().parse_result(result)
-            print(parsed)
+            parsed = parsed.model_dump()
+            
             # Solo para la primera iteración
-            if self._model_name is not None:
+            if self._vector_store is not None:
                 rag_system = diagnosticNormalizerRAG(
                     csv_path=self._csv_path,
-                    model_name=self._model_name
+                    llm=self._llm,
+                    vector_store=self._vector_store
                 )
 
                 normalized = rag_system.normalize_diagnostic(
-                    principal_diagnostic=parsed.principal_diagnostic, icd_code=parsed.icd_code)
+                    principal_diagnostic=parsed["principal_diagnostic"], icd_code=parsed["icd_code"])
 
                 parsed = normalized
 
