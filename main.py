@@ -8,13 +8,13 @@ from evolution_text_analyzer.auxiliary_functions import (
     get_args,
     get_evolution_texts,
     get_listed_models,
-    check_chroma_db,
+    get_chroma_db,
     write_results,
 )
 from evolution_text_analyzer.tester import evaluate_analysis
 
 
-def run_test_analysis_mode(models: list[str], prompts: list[dict], optPrompt: int, evolutionTexts: list, args):
+def run_test_analysis_mode(models: list[str], prompts: list[dict], optPrompt: int, evolutionTexts: list, chromaDB, args):
     testingResultsDir = configFile.parent / "testing_results"
     testingResultsDir.mkdir(parents=True, exist_ok=True)
 
@@ -29,14 +29,16 @@ def run_test_analysis_mode(models: list[str], prompts: list[dict], optPrompt: in
         (args.testPrompts, prompts),
         optPrompt,
         evolutionTexts,
+        testingResultsDir,
+        chromaDB,
+        args.expansionMode,
         args.numBatches,
         args.numEvolutionTexts,
-        testingResultsDir,
         args.verboseMode,
     )
 
 
-def run_analysis_mode(model: str, prompt: dict, evolutionTexts: list, args):
+def run_analysis_mode(model: str, prompt: dict, evolutionTexts: list, chromaDB, args):
     resultsDir = configFile.parent / "results"
     resultsDir.mkdir(parents=True, exist_ok=True)
 
@@ -44,6 +46,8 @@ def run_analysis_mode(model: str, prompt: dict, evolutionTexts: list, args):
         model,
         prompt,
         evolutionTexts,
+        chromaDB,
+        args.expansionMode,
         args.numBatches,
         args.numEvolutionTexts,
     )
@@ -55,7 +59,7 @@ if __name__ == "__main__":
     if not check_ollama_connected():
         print("No connection to Ollama detected.")
         exit(1)
-    check_chroma_db()
+
     basePath = Path(__file__).parent
     evolutionTextsFile = basePath / "evolution_texts_resolved.csv"
     configFile = basePath / "config.json"
@@ -68,9 +72,11 @@ if __name__ == "__main__":
     evolutionTexts = get_evolution_texts(evolutionTextsFile)
     args = get_args(len(evolutionTexts))
 
+    chromaDB = get_chroma_db() if args.normalizeResults else None
+    
     if args.test or args.testPrompts:
         run_test_analysis_mode(
-            models, prompts, opt["prompt"], evolutionTexts, args)
+            models, prompts, opt["prompt"], evolutionTexts, chromaDB, args)
     else:
         run_analysis_mode(
-            models[opt[0]], prompts[opt[1]], evolutionTexts, args)
+            models[opt[0]], prompts[opt[1]], evolutionTexts, chromaDB, args)

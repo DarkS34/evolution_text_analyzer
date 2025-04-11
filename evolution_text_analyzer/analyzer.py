@@ -5,7 +5,6 @@ from langchain.prompts import (
 )
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_ollama.llms import OllamaLLM
-from pydantic import BaseModel
 from langchain_core.output_parsers import StrOutputParser
 
 from ._custom_parser import CustomParser
@@ -16,13 +15,14 @@ def evolution_text_analysis(
     modelName: str,
     prompts: dict[str],
     evolutionTexts: list[dict],
+    chromaDB,
+    expansionMode: bool,
     numBatches: int,
     totalEvolutionTextsToProcess: int,
 ):
     expansionModel = OllamaLLM(
         model=modelName,
         temperature=0,
-        verbose=False,
         seed=1,
     )
 
@@ -53,7 +53,7 @@ def evolution_text_analysis(
                 - Corregir errores ortográficos y gramaticales.\n
                 - Mantener la **estructura y formato original** del texto.\n
                 - No eliminar ni añadir información nueva.\n\n
-                Texto original:\n\"\"\"{input_text}\"\"\"\n\n
+                Texto original:\n\"\"\"{evolution_text}\"\"\"\n\n
                 Devuelve únicamente el texto corregido y expandido, sin explicaciones."""
             ),
         ]
@@ -69,7 +69,7 @@ def evolution_text_analysis(
     )
 
     # Parser
-    parser = CustomParser(modelName)
+    parser = CustomParser(chromaDB, diagnosticModel)
 
     # Expansion chain
     expandChain = expandPrompt | expansionModel | StrOutputParser()
@@ -77,7 +77,7 @@ def evolution_text_analysis(
     # Diagnosis chain
     diagnosisChain = diagnosisPrompt | diagnosticModel | parser
 
-    analysisChain = (
+    fullChain = (
         expandChain
         | RunnableLambda(lambda x: {"evolution_text": x})
         | diagnosisChain
@@ -86,7 +86,8 @@ def evolution_text_analysis(
     # Función para procesar un registro
     def process_evolution_text(evolutionText: str):
         try:
-            return analysisChain.invoke({"input_text": evolutionText})
+            analysisChain = fullChain if expansionMode else diagnosisChain
+            return analysisChain.invoke({"evolution_text": evolutionText})
         except Exception as e:
             return {
                 "principal_diagnostic": None,

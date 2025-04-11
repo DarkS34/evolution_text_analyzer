@@ -59,6 +59,10 @@ def get_args(numEvolutionTexts: int):
                         action="store_true", dest="testPrompts")
     parser.add_argument("-v", "--verbose",
                         action="store_true", dest="verboseMode")
+    parser.add_argument("-N", "--no-normalization", action="store_false",
+                        dest="normalizeResults", help="Don't normalize results via RAG")
+    parser.add_argument("-E", "--no-expansion", action="store_false",
+                        dest="expansionMode", help="Don't expand evolution texts")
 
     args = parser.parse_args()
 
@@ -111,12 +115,10 @@ def get_analyzer_configuration(path: Path) -> tuple[tuple[str, str], list[str], 
         raise ValueError(f"Invalid JSON format in file '{path}'")
 
 
-def check_chroma_db(indexPath: str = "icd_vector_db", csvPath: str = "icd_dataset.csv", modelName: str = "nomic-embed-text:latest") -> bool:
+def _create_chroma_db(indexPath: str = "icd_vector_db", modelName: str = "nomic-embed-text:latest") -> bool:
     indexDir = Path(indexPath)
+    csvPath: str = "icd_dataset.csv"
 
-    if indexDir.exists() and any(indexDir.glob("*")):
-        return True
-    
     print(
         f"{_color_text('[INFO]')} Indice Chroma no encontrado. Creando nuevo desde {csvPath}...\r", end="")
     df = pd.read_csv(csvPath)
@@ -126,25 +128,25 @@ def check_chroma_db(indexPath: str = "icd_vector_db", csvPath: str = "icd_datase
 
     try:
         embeddings = OllamaEmbeddings(model=modelName)
-        Chroma.from_texts(
-        texts=texts,
-        embedding=embeddings,
-        metadatas=metadatas,
-        persist_directory=str(indexDir)
+        chromaDB = Chroma.from_texts(
+            texts=texts,
+            embedding=embeddings,
+            metadatas=metadatas,
+            persist_directory=str(indexDir)
         )
-        
-        return True
+
+        return chromaDB
     except Exception as e:
-        print(f"\n{_color_text('[ERROR]', 'red')} Failed to create Chroma DB: {e}")
+        print(
+            f"\n{_color_text('[ERROR]', 'red')} Failed to create Chroma DB: {e}")
         return False
 
 
-def load_chroma_db(indexPath: str = "icd_vector_db", modelName: str = "nomic-embed-text:latest") -> Chroma:
+def get_chroma_db(indexPath: str = "icd_vector_db", modelName: str = "nomic-embed-text:latest") -> Chroma:
     indexDir = Path(indexPath)
 
-    if not indexDir.exists() or not any(indexDir.glob("*")):
-        raise FileNotFoundError(
-            f"No se encontró el índice Chroma en {indexDir}. ¿Olvidaste ejecutar `create_chroma_db_if_needed()`?")
+    if not indexDir.exists():
+        _create_chroma_db(indexPath, modelName)
 
     embeddings = OllamaEmbeddings(model=modelName)
     return Chroma(
@@ -255,7 +257,8 @@ def choose_model(models: list[str], installedOnly: bool = False) -> list[dict] |
             if choice.isnumeric() and 1 <= int(choice) <= len(listed):
                 selected = listed[int(choice) - 1]
                 return [selected] if check_model(selected) else None
-            print(f"{_color_text('[ERROR]', 'red')}Invalid selection. Please try again.")
+            print(
+                f"{_color_text('[ERROR]', 'red')}Invalid selection. Please try again.")
     except (FileNotFoundError, ValueError) as e:
         print(f"Error: {e}")
         return None
@@ -290,8 +293,8 @@ def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> N
     Performance:
     ------------------
         {_color_text('Accuracy')}: {accuracy}% ({int((accuracy / 100) * total)}/{total})
-        Incorrect outputs: {incorrect}% ({int((incorrect / 100) * total)}/{total})
-        {_color_text('Errors', 'red')}: {errors}% ({int((errors / 100) * total)}/{total})
+        {_color_text('Incorrect outputs', 'red')}: {incorrect}% ({int((incorrect / 100) * total)}/{total})
+        Errors: {errors}% ({int((errors / 100) * total)}/{total})
         
         Total records processed: {total}
         Duration: {perf.duration} s.
