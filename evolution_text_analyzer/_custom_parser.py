@@ -76,8 +76,6 @@ class diagnosticNormalizerRAG:
         similar_codes = "\n".join(
             f"- {doc.page_content}" for doc in similar_docs)
 
-        print(similar_codes)
-
         # 4. Crear prompt
         prompt = ChatPromptTemplate(
             messages=[
