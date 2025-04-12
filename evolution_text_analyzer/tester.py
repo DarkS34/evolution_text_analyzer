@@ -7,197 +7,199 @@ from pydantic import BaseModel
 import time
 from pathlib import Path
 from typing import Dict, Optional
-
+from datetime import datetime
 from ._validator import validate_result
 from .analyzer import evolution_text_analysis
 from .auxiliary_functions import check_model, print_evaluated_results, update_results, write_results
 
 
 class DiagnosticResult(BaseModel):
-    icdCode: Optional[str]
-    principalDiagnostic: Optional[str]
-    validationError: Optional[str] = None
-    processingError: Optional[str] = None
+    icd_code: Optional[str]
+    principal_diagnostic: Optional[str]
+    validation_error: Optional[str] = None
+    processing_error: Optional[str] = None
 
 
 class EvaluationOutput(BaseModel):
     valid: bool
-    processedOutput: DiagnosticResult
-    correctDiagnostic: str
+    processed_output: DiagnosticResult
+    correct_diagnostic: str
 
 
 class PerformanceMetrics(BaseModel):
     accuracy: float
-    incorrectOutputs: float
+    incorrect_outputs: float
     errors: float
     hits: int
-    totalTexts: int
+    total_texts: int
     duration: float
-    startTime: str
-    endTime: str
-    numBatches: int
-    promptIndex: int
+    start_time: str
+    end_time: str
+    num_batches: int
+    prompt_index: int
 
 
 class EvaluationResult(BaseModel):
-    modelInfo: dict
+    model_info: dict
     performance: PerformanceMetrics
-    evaluatedTexts: Dict[str, EvaluationOutput]
+    evaluated_texts: Dict[str, EvaluationOutput]
 
 
-def process_record(modelName: str, processed: dict, expected: str) -> EvaluationOutput:
+def process_record(model_name: str, processed: dict, expected: str) -> EvaluationOutput:
     try:
         if not processed.get("processing_error"):
             valid = validate_result(
-                modelName, processed["principal_diagnostic"], expected)
+                model_name, processed["principal_diagnostic"], expected)
         else:
             valid = False
         result = DiagnosticResult(
-            icdCode=processed.get("icd_code"),
-            principalDiagnostic=processed.get("principal_diagnostic"),
-            processingError=processed.get("processing_error"),
+            icd_code=processed.get("icd_code"),
+            principal_diagnostic=processed.get("principal_diagnostic"),
+            processing_error=processed.get("processing_error"),
         )
     except Exception as e:
         valid = False
         result = DiagnosticResult(
-            icdCode=None,
-            principalDiagnostic=None,
-            validationError=str(e),
+            icd_code=None,
+            principal_diagnostic=None,
+            validation_error=str(e),
         )
 
     return EvaluationOutput(
         valid=valid,
-        processedOutput=result,
-        correctDiagnostic=expected
+        processed_output=result,
+        correct_diagnostic=expected
     )
 
 
 def calculate_metrics(
     evaluated: Dict[str, EvaluationOutput],
-    totalTexts: int,
-    numBatches: int,
-    promptIndex: int,
+    total_texts: int,
+    num_batches: int,
+    prompt_index: int,
     start: float,
     end: float,
-    dateFormat: str
+    date_format: str
 ) -> PerformanceMetrics:
     valid = sum(1 for e in evaluated.values() if e.valid)
     errors = sum(
         1 for e in evaluated.values()
-        if not e.valid and (e.processedOutput.validationError or e.processedOutput.processingError)
+        if not e.valid and (e.processed_output.validation_error or e.processed_output.processing_error)
     )
-    incorrect = totalTexts - valid - errors
+    incorrect = total_texts - valid - errors
 
     return PerformanceMetrics(
-        accuracy=round((valid / totalTexts) * 100, 2),
-        incorrectOutputs=round((incorrect / totalTexts) * 100, 2),
-        errors=round((errors / totalTexts) * 100, 2),
+        accuracy=round((valid / total_texts) * 100, 2),
+        incorrect_outputs=round((incorrect / total_texts) * 100, 2),
+        errors=round((errors / total_texts) * 100, 2),
         hits=valid,
-        totalTexts=totalTexts,
+        total_texts=total_texts,
         duration=round(end - start, 2),
-        startTime=time.strftime(dateFormat, time.localtime(start)),
-        endTime=time.strftime(dateFormat, time.localtime(end)),
-        numBatches=numBatches,
-        promptIndex=promptIndex,
+        start_time=time.strftime(date_format, time.localtime(start)),
+        end_time=time.strftime(date_format, time.localtime(end)),
+        num_batches=num_batches,
+        prompt_index=prompt_index,
     )
 
 
 def evaluate_model(
-    modelInfo: dict,
+    model_info: dict,
     prompt: str,
-    evolutionTexts: list[dict],
-    chromaDB,
-    expansionMode: bool,
-    numBatches: int,
-    numTexts: int,
-    promptIndex: int,
-    dateFormat: str = "%H:%M:%S %d-%m-%Y"
+    evolution_texts: list[dict],
+    chroma_db,
+    expansion_mode: bool,
+    num_batches: int,
+    num_texts: int,
+    prompt_index: int,
+    date_format: str = "%H:%M:%S %d-%m-%Y"
 ) -> EvaluationResult:
 
     start = time.time()
     processed = evolution_text_analysis(
-        modelInfo["modelName"],
+        model_info["model_name"],
         prompt,
-        evolutionTexts,
-        chromaDB,
-        expansionMode,
-        numBatches,
-        numTexts,
+        evolution_texts,
+        chroma_db,
+        expansion_mode,
+        num_batches,
+        num_texts,
     )
     end = time.time()
 
     evaluated = {
         key: process_record(
-            modelInfo["modelName"], result, evolutionTexts[i]["principal_diagnostic"])
+            model_info["model_name"], result, evolution_texts[i]["principal_diagnostic"])
         for i, (key, result) in enumerate(processed.items())
     }
 
     metrics = calculate_metrics(
         evaluated,
-        totalTexts=numTexts,
-        numBatches=numBatches,
-        promptIndex=promptIndex,
+        total_texts=num_texts,
+        num_batches=num_batches,
+        prompt_index=prompt_index,
         start=start,
         end=end,
-        dateFormat=dateFormat
+        date_format=date_format
     )
 
     return EvaluationResult(
-        modelInfo=modelInfo,
+        model_info=model_info,
         performance=metrics,
-        evaluatedTexts=evaluated
+        evaluated_texts=evaluated
     )
 
 
 def evaluate_analysis(
     models: list[dict],
-    promptsInfo: tuple[bool, list[dict]],
-    optPrompt: int,
-    evolutionTexts: list[dict],
-    testingResultsDir: Path,
-    chromaDB,
-    expansionMode: bool,
-    numBatches: int,
-    numTexts: int,
+    prompts_info: tuple[bool, list[str]],
+    opt_prompt: int,
+    evolution_texts: list[dict],
+    testing_results_dir: Path,
+    chroma_db,
+    expansion_mode: bool,
+    num_batches: int,
+    num_texts: int,
     verbose: bool
 ):
-    testPrompts, prompts = promptsInfo
-
+    test_prompts, prompts = prompts_info
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if len(models) == 1:
-        if not testPrompts:
-            evaluationResults = evaluate_model(
-                models[0], prompts[optPrompt], evolutionTexts, chromaDB, expansionMode, numBatches, numTexts, 0)
+        if not test_prompts:
+            evaluation_results = evaluate_model(
+                models[0], prompts[opt_prompt], evolution_texts, chroma_db, expansion_mode, num_batches, num_texts, 0)
 
-            print_evaluated_results(models[0], evaluationResults, verbose)
+            print_evaluated_results(models[0], evaluation_results, verbose)
 
             write_results(
-                testingResultsDir/f"results_{models[0]['modelName'].replace(':', '_')}.json", evaluationResults)
+                testing_results_dir / f"{timestamp}_{models[0]['model_name'].replace(':', '-')}.json", evaluation_results)
         else:
-            allEvaluationsResults = []
-            for promptIndex, prompt in enumerate(prompts):
-                evaluationResults = evaluate_model(
-                    models[0], prompt, evolutionTexts, chromaDB, expansionMode, numBatches, numTexts, promptIndex)
+            all_evaluations_results = []
+            for prompt_index, prompt in enumerate(prompts):
+                evaluation_results = evaluate_model(
+                    models[0], prompt, evolution_texts, chroma_db, expansion_mode, num_batches, num_texts, prompt_index)
 
                 update_results(
-                    testingResultsDir/f"results_{models[0]['modelName'].replace(':', '_')}_all_prompts.json", evaluationResults, allEvaluationsResults)
+                    testing_results_dir / f"{timestamp}_{models[0]['model_name'].replace(':', '-')}_all_prompts.json", evaluation_results, all_evaluations_results)
     else:
-        allEvaluationsResults = []
+        all_evaluations_results = []
+        testing_results_dir = testing_results_dir / "all_listed_models"
+        testing_results_dir.mkdir(parents=True, exist_ok=True)
         for model in models:
             if check_model(model):
-                if not testPrompts:
-                    evaluationResults = evaluate_model(
-                        model, prompts[optPrompt], evolutionTexts, chromaDB, expansionMode, numBatches, numTexts, 0)
+                if not test_prompts:
+                    evaluation_results = evaluate_model(
+                        model, prompts[opt_prompt], evolution_texts, chroma_db, expansion_mode, num_batches, num_texts, 0)
                     update_results(
-                        testingResultsDir / "results_allListedModels.json",
-                        evaluationResults,
-                        allEvaluationsResults
+                        testing_results_dir / f"{timestamp}_{timestamp}.json",
+                        evaluation_results,
+                        all_evaluations_results
                     )
                 else:
-                    for promptIndex, prompt in enumerate(prompts):
-                        evaluationResults = evaluate_model(
-                            model, prompt, evolutionTexts, chromaDB, expansionMode, numBatches, numTexts, promptIndex)
+                    for prompt_index, prompt in enumerate(prompts):
+                        evaluation_results = evaluate_model(
+                            model, prompt, evolution_texts, chroma_db, expansion_mode, num_batches, num_texts, prompt_index)
                         update_results(
-                            testingResultsDir / "results_allListedModels_all_prompts.json",
-                            evaluationResults,
-                            allEvaluationsResults
+                            testing_results_dir / f"{timestamp}_all_prompts.json",
+                            evaluation_results,
+                            all_evaluations_results
                         )

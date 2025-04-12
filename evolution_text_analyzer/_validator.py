@@ -5,14 +5,9 @@ This module does stuff.
 
 import unicodedata
 
-from langchain.output_parsers import PydanticOutputParser
-from langchain.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    SystemMessagePromptTemplate,
-)
+from langchain.output_parsers import BooleanOutputParser
+from langchain.prompts import PromptTemplate
 from langchain_ollama.llms import OllamaLLM
-from pydantic import BaseModel, Field
 
 extendedDiagMap = {
     "Baker": "Quiste de Baker",
@@ -57,56 +52,43 @@ def normalize_name(name: str) -> str:
 
 
 def model_validation(modelName: str, diag1: str, diag2: str):
-    class DiagnosticComparator(BaseModel):
-        comparation: bool = Field(
-            title="Comparación de Diagnósticos",
-            description="Indica si las dos enfermedades mencionadas son la misma (True) o diferentes (False).",
-            examples=[True, False]
-        )
     model = OllamaLLM(
         model=modelName,
         temperature=0,
         top_p=0.9,
         verbose=False,
-        format="json",
         seed=123,
     )
-    parser = PydanticOutputParser(pydantic_object=DiagnosticComparator)
+    parser = BooleanOutputParser(true_val="True", false_val="False")
 
-    prompt = ChatPromptTemplate(
-        messages=[
-        SystemMessagePromptTemplate.from_template(
-            """Eres un especialista médico experto en comparar enfermedades"""
-        ),
-        HumanMessagePromptTemplate.from_template(
-            """Tu tarea es analizar si dos enfermedades son la misma basándote en criterios médicos rigurosos, como: síntomas, causas, patología, tratamientos y clasificación médica oficial (CIE-10)."
-            Si los nombres son diferentes pero la enfermedad es la misma según estos criterios, indica 'True'. 
-            Si hay diferencias significativas en cualquiera de estos aspectos, indica 'False'. 
+    prompt = PromptTemplate.from_template(
+        """
+            Eres un especialista médico experto en comparar enfermedades
+
+            Tu tarea es analizar si dos enfermedades son la misma basándote en criterios médicos rigurosos, como: síntomas, causas, patología, tratamientos y clasificación médica oficial (CIE-10)."
+            Si los nombres son diferentes pero la enfermedad es la misma según estos criterios, indica 'Si'. 
+            Si hay diferencias significativas en cualquiera de estos aspectos, indica 'No'. 
             No asumas que dos nombres similares significan la misma enfermedad sin evidencia clara.
             ¿La enfermedad "{diag1}" es exactamente la misma que "{diag2}" según criterios médicos oficiales?
-            Responde solo con "True" o "False"."""
-        ),
-        ],
-        input_variables=["diag1", "diag2"],
-        partial_variables={
-            "instructionsFormat": parser.get_format_instructions()}
+            Responde solo con "Si" o "No".
+        """
     )
 
     validationChain = prompt | model | parser
 
     try:
-        result: DiagnosticComparator = validationChain.invoke(
-            {"diag1": diag1, "diag2": diag2})
+        result = validationChain.invoke({"diag1": diag1, "diag2": diag2})
     except Exception:
         return False
 
-    return result.comparation
+    return result
 
 
 def validate_result(modelName: str, processedDiag: str, correctDiag: str):
     processedDiagNorm = normalize_name(processedDiag)
     correctDiagNorm = normalize_name(correctDiag)
-    
-    staticalCond = (processedDiagNorm == correctDiagNorm) or processedDiagNorm.find(correctDiagNorm) != -1 or  correctDiagNorm.find(processedDiagNorm) != -1
-    
+
+    staticalCond = (processedDiagNorm == correctDiagNorm) or processedDiagNorm.find(
+        correctDiagNorm) != -1 or correctDiagNorm.find(processedDiagNorm) != -1
+
     return staticalCond
