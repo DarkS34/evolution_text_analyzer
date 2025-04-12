@@ -20,58 +20,12 @@ from pydantic import BaseModel, ByteSize
 
 
 class ModelInfo(BaseModel):
-    modelName: str
+    model_name: str
     installed: bool = False
     size: str | None = None
-    parameterSize: str | None = None
-    quantizationLevel: str | None = None
+    parameter_size: str | None = None
+    quantization_level: str | None = None
 
-# ------------------------
-# Connection & Argument Handling
-# ------------------------
-
-
-def check_ollama_connected(url="http://localhost:11434") -> bool:
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return True
-        print("There is a problem. Try to restart Ollama to see available models.")
-        return False
-    except requests.ConnectionError as e:
-        print(f"Error:\n{e}.\n\nOllama is not running.\n")
-        return False
-
-
-def get_args(numEvolutionTexts: int):
-    parser = ArgumentParser(
-        description="Script for processing with labeled modes.", allow_abbrev=False)
-    parser.add_argument("-m", "--mode", type=int,
-                        choices=[1, 2], default=1, help="Operation mode (1 or 2)")
-    parser.add_argument("-b", "--batches", type=int,
-                        default=1, dest="numBatches")
-    parser.add_argument("-n", "--num-texts", type=int,
-                        default=numEvolutionTexts, dest="numEvolutionTexts")
-    parser.add_argument("-t", "--test", action="store_true", dest="test")
-    parser.add_argument("-i", "--installed",
-                        action="store_true", dest="onlyInstalledModels")
-    parser.add_argument("-tp", "--test-prompts",
-                        action="store_true", dest="testPrompts")
-    parser.add_argument("-v", "--verbose",
-                        action="store_true", dest="verboseMode")
-    parser.add_argument("-N", "--no-normalization", action="store_false",
-                        dest="normalizeResults", help="Don't normalize results via RAG")
-    parser.add_argument("-E", "--no-expansion", action="store_false",
-                        dest="expansionMode", help="Don't expand evolution texts")
-
-    args = parser.parse_args()
-
-    return args
-
-
-# ------------------------
-# File and Config Handling
-# ------------------------
 
 def _color_text(text, color="green"):
     colors = {
@@ -84,6 +38,51 @@ def _color_text(text, color="green"):
         # "cyan": "\033[96m",
     }
     return f"{colors.get(color, '')}{text}\033[0m"
+
+# ------------------------
+# Connection & Argument Handling
+# ------------------------
+
+
+def check_ollama_connection(url: str = "http://localhost:11434") -> None:
+    try:
+        if not requests.get(url).status_code == 200:
+            print(
+                f"{_color_text('[ERROR]', 'red')} An error ocurred. Imposible to connect to Ollama.\n")
+            exit(1)
+    except requests.ConnectionError:
+        print(
+            f"{_color_text('[ERROR]', 'red')} Ollama is not running.")
+        exit(1)
+
+
+def get_args(num_evolution_texts: int):
+    parser = ArgumentParser(
+        description="Script for processing with labeled modes.", allow_abbrev=False)
+    parser.add_argument("-m", "--mode", type=int,
+                        choices=[1, 2], default=1, help="Operation mode (1 or 2)")
+    parser.add_argument("-b", "--batches", type=int,
+                        default=1, dest="num_batches")
+    parser.add_argument("-n", "--num-texts", type=int,
+                        default=num_evolution_texts, dest="num_evolution_texts")
+    parser.add_argument("-t", "--test", action="store_true", dest="test")
+    parser.add_argument("-i", "--installed",
+                        action="store_true", dest="only_installed_models")
+    parser.add_argument("-tp", "--test-prompts",
+                        action="store_true", dest="test_prompts")
+    parser.add_argument("-v", "--verbose",
+                        action="store_true", dest="verbose_mode")
+    parser.add_argument("-N", "--no-normalization", action="store_false",
+                        dest="normalize_results", help="Don't normalize results via RAG")
+    parser.add_argument("-E", "--no-expansion", action="store_false",
+                        dest="expansion_mode", help="Don't expand evolution texts")
+
+    return parser.parse_args()
+
+
+# ------------------------
+# File and Config Handling
+# ------------------------
 
 
 def get_evolution_texts(path: Path):
@@ -100,8 +99,9 @@ def get_evolution_texts(path: Path):
         else:
             raise ValueError("Extension not supported. Must be .json or .csv")
 
-    for et in texts:
-        et["evolution_text"] = et["evolution_text"].replace("\n", " ")
+    for evolution_text in texts:
+        evolution_text["evolution_text"] = evolution_text["evolution_text"].replace(
+            "\n", " ")
 
     return texts
 
@@ -115,42 +115,42 @@ def get_analyzer_configuration(path: Path) -> tuple[tuple[str, str], list[str], 
         raise ValueError(f"Invalid JSON format in file '{path}'")
 
 
-def _create_chroma_db(indexPath: str = "icd_vector_db", modelName: str = "nomic-embed-text:latest") -> bool:
-    indexDir = Path(indexPath)
-    csvPath: str = "icd_dataset.csv"
+def _create_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomic-embed-text:latest") -> bool:
+    index_dir = Path(index_path)
+    csv_path: str = "icd_dataset.csv"
 
     print(
-        f"{_color_text('[INFO]')} Indice Chroma no encontrado. Creando nuevo desde {csvPath}...\r", end="")
-    df = pd.read_csv(csvPath)
+        f"{_color_text('[INFO]')} Indice Chroma no encontrado. Creando nuevo desde {csv_path}...\r", end="")
+    df = pd.read_csv(csv_path)
     df["text"] = df["code"] + ": " + df["description"]
     texts = df["text"].tolist()
     metadatas = df[["code", "description"]].to_dict(orient="records")
 
     try:
-        embeddings = OllamaEmbeddings(model=modelName)
-        chromaDB = Chroma.from_texts(
+        embeddings = OllamaEmbeddings(model=model_name)
+        chroma_db = Chroma.from_texts(
             texts=texts,
             embedding=embeddings,
             metadatas=metadatas,
-            persist_directory=str(indexDir)
+            persist_directory=str(index_dir)
         )
 
-        return chromaDB
+        return chroma_db
     except Exception as e:
         print(
             f"\n{_color_text('[ERROR]', 'red')} Failed to create Chroma DB: {e}")
         return False
 
 
-def get_chroma_db(indexPath: str = "icd_vector_db", modelName: str = "nomic-embed-text:latest") -> Chroma:
-    indexDir = Path(indexPath)
+def get_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomic-embed-text:latest") -> Chroma:
+    index_dir = Path(index_path)
 
-    if not indexDir.exists():
-        _create_chroma_db(indexPath, modelName)
+    if not index_dir.exists():
+        _create_chroma_db(index_path, model_name)
 
-    embeddings = OllamaEmbeddings(model=modelName)
+    embeddings = OllamaEmbeddings(model=model_name)
     return Chroma(
-        persist_directory=str(indexDir),
+        persist_directory=str(index_dir),
         embedding_function=embeddings
     )
 
@@ -159,46 +159,47 @@ def get_chroma_db(indexPath: str = "icd_vector_db", modelName: str = "nomic-embe
 # ------------------------
 
 
-def _process_model_info(rawModel: str, installedModels: list[dict]) -> ModelInfo:
+def _process_model_info(raw_model: str, installed_models: list[dict]) -> ModelInfo:
     installed = next(
-        (m for m in installedModels if m["model"] == rawModel), None)
-    size, parameterSize, quantLevel = None, None, None
+        (model for model in installed_models if model["model"] == raw_model), None)
+    size, parameter_size, quant_level = None, None, None
 
     if installed:
         size = f"{round(ByteSize(installed.get('size', 0)).to('GB'), 1)} GB" if "size" in installed else None
         details = installed.get("details", {})
-        parameterSize = details.get("parameter_size")
-        quantLevel = details.get("quantization_level")
+        parameter_size = details.get("parameter_size")
+        quant_level = details.get("quantization_level")
 
     return ModelInfo(
-        modelName=rawModel,
+        model_name=raw_model,
         installed=bool(installed),
         size=size,
-        parameterSize=parameterSize,
-        quantizationLevel=quantLevel
+        parameter_size=parameter_size,
+        quantization_level=quant_level
     )
 
 
-def get_listed_models(rawModels: list[str], installedOnly: bool = False) -> list[dict]:
-    if not rawModels:
+def get_listed_models(raw_models: list[str], installed_only: bool = False) -> list[dict]:
+    if not raw_models:
         raise ValueError("No models found in the list")
 
     installed = ollama.list()["models"]
-    models = [_process_model_info(m, installed).__dict__ for m in rawModels]
-    return [m for m in models if m["installed"]] if installedOnly else models
+    models = [_process_model_info(
+        model, installed).__dict__ for model in raw_models]
+    return [model for model in models if model["installed"]] if installed_only else models
 
 
 def download_model(model: dict) -> bool:
     try:
-        print(f"\rDownloading: '{model['modelName']}'", end="")
-        ollama.pull(model["modelName"])
-        updated = next((m for m in ollama.list()[
-                       "models"] if m["model"] == model["modelName"]), None)
+        print(f"\rDownloading: '{model['model_name']}'", end="")
+        ollama.pull(model["model_name"])
+        updated = next((model for model in ollama.list()[
+                       "models"] if model["model"] == model["model_name"]), None)
         if updated:
             model.update({
                 "size": f"{round(ByteSize(updated['size']).to('GB'), 1)} GB",
-                "parameterSize": updated["details"]["parameter_size"],
-                "quantizationLevel": updated["details"]["quantization_level"]
+                "parameter_size": updated["details"]["parameter_size"],
+                "quantization_level": updated["details"]["quantization_level"]
             })
             model.pop("installed", None)
             return True
@@ -216,37 +217,37 @@ def check_model(model: dict) -> bool:
 
 
 def display_model_table(models: list[dict]) -> None:
-    colWidths = {
-        "name": max(len(m["modelName"]) for m in models) + 4,
+    col_widths = {
+        "name": max(len(model["model_name"]) for model in models) + 4,
         "available": len("Not installed") + 4,
         "details": 15
     }
 
     header = (
         f"{'ID'.rjust(4)}  "
-        f"{'NAME'.ljust(colWidths['name'])}"
-        f"{'AVAILABLE'.ljust(colWidths['available'])}"
-        f"{'SIZE'.ljust(colWidths['details']-5)}"
-        f"{'PARAMETERS'.ljust(colWidths['details'])}"
-        f"{'QUANTIZATION'.ljust(colWidths['details'])}"
+        f"{'NAME'.ljust(col_widths['name'])}"
+        f"{'AVAILABLE'.ljust(col_widths['available'])}"
+        f"{'SIZE'.ljust(col_widths['details']-5)}"
+        f"{'PARAMETERS'.ljust(col_widths['details'])}"
+        f"{'QUANTIZATION'.ljust(col_widths['details'])}"
     )
     print(header)
 
     for i, model in enumerate(models, 1):
         details = (
-            "Installed".ljust(colWidths["available"]) +
-            f"{model['size'] or ''}".ljust(colWidths["details"] - 5) +
-            f"{model['parameterSize'] or ''}".ljust(colWidths["details"]) +
-            f"{model['quantizationLevel'] or ''}".ljust(colWidths["details"])
+            "Installed".ljust(col_widths["available"]) +
+            f"{model['size'] or ''}".ljust(col_widths["details"] - 5) +
+            f"{model['parameter_size'] or ''}".ljust(col_widths["details"]) +
+            f"{model['quantization_level'] or ''}".ljust(col_widths["details"])
         ) if model["installed"] else "Not installed"
 
         print(
-            f"{str(i).rjust(4)}. {model['modelName'].ljust(colWidths['name'])}{details}")
+            f"{str(i).rjust(4)}. {model['model_name'].ljust(col_widths['name'])}{details}")
 
 
-def choose_model(models: list[str], installedOnly: bool = False) -> list[dict] | None:
+def choose_model(models: list[str], installed_only: bool = False) -> list[dict] | None:
     try:
-        listed = get_listed_models(models, installedOnly)
+        listed = get_listed_models(models, installed_only)
         if not listed:
             print("No models available to choose from.")
             return None
@@ -265,52 +266,47 @@ def choose_model(models: list[str], installedOnly: bool = False) -> list[dict] |
 
 
 def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> None:
-    if verbose:
-        for id, eet in results.evaluatedTexts.items():
-            print(
-                f"""
-            {id} - {eet.valid} {"-" * 20}
-            Model result: {eet.processedOutput.principalDiagnostic} ({eet.processedOutput.icdCode})
-            Correct result: {eet.correctOutput["principal_diagnostic"]}
-            """,
-            )
-            if eet.processedOutput.processingError:
-                print(f"Error: {eet.processedOutput.processingError}")
-            if eet.processedOutput.validationError:
-                print(f"Error: {eet.processedOutput.validationError}")
-
     # Limpieza de la línea actual en consola
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
+    if verbose:
+        for id, evaluated_text in results.evaluated_texts.items():
+            print(
+                f"\n{id} - {_color_text(evaluated_text.valid, 'green' if evaluated_text.valid else 'red')}\n"
+                f"\tModel dignostic: {evaluated_text.processed_output.principal_diagnostic} (Code - {evaluated_text.processed_output.icd_code})\n"
+                f"\tCorrect diagnostic: {evaluated_text.correct_diagnostic}"
+            )
+            if evaluated_text.processed_output.processing_error:
+                print(
+                    f"Processing Error: {evaluated_text.processed_output.processing_error}")
+            if evaluated_text.processed_output.validation_error:
+                print(
+                    f"Validation Error: {evaluated_text.processed_output.validation_error}")
+        print()
+    performance = results.performance
+    accuracy = performance.accuracy
+    incorrect = performance.incorrect_outputs
+    errors = performance.errors
+    total = performance.total_texts
 
-    perf = results.performance
-    accuracy = perf.accuracy
-    incorrect = perf.incorrectOutputs
-    errors = perf.errors
-    total = perf.totalTexts
-
-    print(f"""\r
-    Model: {_color_text(model["modelName"], 'bold')}
-    Performance:
-    ------------------
-        {_color_text('Accuracy')}: {accuracy}% ({int((accuracy / 100) * total)}/{total})
-        {_color_text('Incorrect outputs', 'red')}: {incorrect}% ({int((incorrect / 100) * total)}/{total})
-        Errors: {errors}% ({int((errors / 100) * total)}/{total})
-        
-        Total records processed: {total}
-        Duration: {perf.duration} s.
-    -------------------
-    """, end="", flush=True)
+    print(
+        f"\rModel: {model['model_name']}\n"
+        f"Performance:\n"
+        f"\t{_color_text('Accuracy')}: {accuracy}% ({int((accuracy / 100) * total)}/{total})\n"
+        f"\t{_color_text('Incorrect outputs', 'red')}: {incorrect}% ({int((incorrect / 100) * total)}/{total})\n"
+        f"\tErrors: {errors}% ({int((errors / 100) * total)}/{total})\n\n"
+        f"\tTotal records processed: {total}\n"
+        f"\tDuration: {performance.duration} s.", end="", flush=True)
 
 
-def update_results(resultsPath: Path, partialResult: dict, modelsResults: list) -> None:
-    modelsResults.append(partialResult)
-    modelsResults.sort(
+def update_results(results_path: Path, partial_result: dict, models_results: list) -> None:
+    models_results.append(partial_result)
+    models_results.sort(
         key=lambda x: x.performance.accuracy, reverse=True)
-    write_results(resultsPath, modelsResults)
+    write_results(results_path, models_results)
 
 
-def write_results(resultsPath: str, results: dict | BaseModel | list[BaseModel]) -> None:
-    with open(resultsPath, mode="w", encoding="utf-8") as file:
+def write_results(results_path: str, results: dict | BaseModel | list[BaseModel]) -> None:
+    with open(results_path, mode="w", encoding="utf-8") as file:
         if isinstance(results, list):
             results = [result.model_dump(exclude_none=True)
                        for result in results]
@@ -321,22 +317,22 @@ def write_results(resultsPath: str, results: dict | BaseModel | list[BaseModel])
 
 
 def print_execution_progression(
-    modelName: str,
-    processedTexts: int,
-    totalTexts: int,
-    processedModels: int = 1,
-    totalModels: int = 1,
+    model_name: str,
+    processed_texts: int,
+    total_texts: int,
+    processed_models: int = 1,
+    total_models: int = 1,
 ) -> None:
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
-    if totalModels == 1:
+    if total_models == 1:
         print(
-            f"\r{_color_text('[PROCESSING]')} {modelName} - Evolution texts processed {processedTexts}/{totalTexts}",
+            f"\r{_color_text('[PROCESSING]')} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
             end="",
             flush=True,
         )
     else:
         print(
-            f"\r{_color_text('[PROCESSING]')} Models processed {processedModels}/{totalModels} | Currently {modelName} - Evolution texts processed {processedTexts}/{totalTexts}",
+            f"\r{_color_text('[PROCESSING]')} Models processed {processed_models}/{total_models} | Currently {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
             end="",
             flush=True,
         )
