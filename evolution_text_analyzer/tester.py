@@ -181,7 +181,7 @@ def evaluate_analysis(
                     models[0], prompt, evolution_texts, chroma_db, expansion_mode, num_batches, num_texts, prompt_index)
 
                 update_results(
-                    testing_results_dir / f"{timestamp}_{models[0]['model_name'].replace(':', '-')}_all_prompts{aditional_info}.json", evaluation_results, all_evaluations_results)
+                    testing_results_dir / f"{timestamp}_{models[0]['model_name'].replace(r'[:-]', '')}_all_prompts{aditional_info}.json", evaluation_results, all_evaluations_results)
     else:
         all_evaluations_results = []
         testing_results_dir = testing_results_dir / "all_listed_models"

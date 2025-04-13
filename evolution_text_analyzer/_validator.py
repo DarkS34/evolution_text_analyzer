@@ -34,7 +34,6 @@ extendedDiagMap = {
     "Sind. de SJÖGREN": "Síndrome de Sjögren",
     "Autoinflamatorio": "Síndrome Autoinflamatorio",
     "FOP": "Fibrodisplasia Osificante Progresiva",
-    "Beçhet": "Enfermedad de Behçet",
 }
 
 

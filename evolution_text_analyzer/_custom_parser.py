@@ -104,7 +104,9 @@ class CustomParser(BaseOutputParser):
         try:
             icd_code = icd_chain.invoke(
                 {"principal_diagnostic": principal_diagnostic})
+            icd_code = re.search(r'([A-Z]\d+\.\d+)', icd_code)
             icd_code = re.sub(r"[\n\r\s\.]", "", icd_code.strip())
+            
             return {
                 "icd_code": icd_code,
                 "principal_diagnostic": principal_diagnostic
