@@ -5,10 +5,6 @@ This module does stuff.
 
 import unicodedata
 
-from langchain.output_parsers import BooleanOutputParser
-from langchain.prompts import PromptTemplate
-from langchain_ollama.llms import OllamaLLM
-
 extendedDiagMap = {
     "Baker": "Quiste de Baker",
     "Behcet": "Enfermedad de Behçet",
@@ -39,49 +35,12 @@ extendedDiagMap = {
     "Autoinflamatorio": "Síndrome Autoinflamatorio",
     "FOP": "Fibrodisplasia Osificante Progresiva",
     "Beçhet": "Enfermedad de Behçet",
-    "Artritis gotosa aguda": "Gota",
-    "Artritis goutosa": "Gota",
 }
 
 
 def normalize_name(name: str) -> str:
     newName = extendedDiagMap.get(name, name)
-    return "".join(
-        c for c in unicodedata.normalize("NFKD", newName) if not unicodedata.combining(c)
-    ).lower()
-
-
-def model_validation(modelName: str, diag1: str, diag2: str):
-    model = OllamaLLM(
-        model=modelName,
-        temperature=0,
-        top_p=0.9,
-        verbose=False,
-        seed=123,
-    )
-    parser = BooleanOutputParser(true_val="True", false_val="False")
-
-    prompt = PromptTemplate.from_template(
-        """
-            Eres un especialista médico experto en comparar enfermedades
-
-            Tu tarea es analizar si dos enfermedades son la misma basándote en criterios médicos rigurosos, como: síntomas, causas, patología, tratamientos y clasificación médica oficial (CIE-10)."
-            Si los nombres son diferentes pero la enfermedad es la misma según estos criterios, indica 'Si'. 
-            Si hay diferencias significativas en cualquiera de estos aspectos, indica 'No'. 
-            No asumas que dos nombres similares significan la misma enfermedad sin evidencia clara.
-            ¿La enfermedad "{diag1}" es exactamente la misma que "{diag2}" según criterios médicos oficiales?
-            Responde solo con "Si" o "No".
-        """
-    )
-
-    validationChain = prompt | model | parser
-
-    try:
-        result = validationChain.invoke({"diag1": diag1, "diag2": diag2})
-    except Exception:
-        return False
-
-    return result
+    return "".join(c for c in unicodedata.normalize("NFKD", newName) if not unicodedata.combining(c)).lower()
 
 
 def validate_result(modelName: str, processedDiag: str, correctDiag: str):

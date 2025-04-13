@@ -1,69 +1,44 @@
 import re
-from typing import Dict, Optional
 
 import pandas as pd
-from langchain.output_parsers import PydanticOutputParser
 from langchain.prompts import PromptTemplate
 from langchain_chroma import Chroma
+from langchain_core.output_parsers import BaseOutputParser, StrOutputParser
 from langchain_core.outputs import Generation
 from langchain_ollama.llms import OllamaLLM
-from pydantic import BaseModel, Field, PrivateAttr
 
-
-class EvolutionTextDiagnosticSchema(BaseModel):
-    principal_diagnostic: str = Field(
-        title="Nombre enfermedad pricipal",
-        description="Nombre de la enfermedad principal, basado en el historial del paciente",
-    )
-    # icd_code: str = Field(
-    #     title="Código CIE-10 enfermedad",
-    #     description="Código CIE-10 de la enfermedad principal, basado en el historial del paciente. Debe seguir el formato estándar.",
-    #     examples=["M06.4", "M06.33", "M05.0"]
-    # )
+THRESHOLD: float = 0.90
+FW_RATION: int = 80
 
 
 class DiagnosticNormalizerRAG:
-    def __init__(self, csv_path: str, llm: OllamaLLM, vector_store: Chroma, prompt: str):
+    def __init__(self, vector_store: Chroma, llm: OllamaLLM, prompt: str, csv_path: str):
         self.prompt = prompt
         self.df = pd.read_csv(csv_path)
-        self.df_search = self.df.copy()
-        self.df_search['text'] = self.df_search['principal_diagnostic'] + \
-            ':' + self.df_search['icd_code']
+        self.df['text'] = self.df['principal_diagnostic'] + \
+            ':' + self.df['icd_code']
         self.vector_store = vector_store
+        self.threshold = THRESHOLD
         self.llm = llm
 
-    def normalize_diagnostic(self, principal_diagnostic: str) -> Dict[str, str]:
+    def normalize_diagnostic(self, principal_diagnostic: str) -> dict[str, str]:
         normalized_principal_diagnostic = principal_diagnostic.lower().strip()
 
-        diagnostic_matches = self.df[
-            self.df['principal_diagnostic'].str.contains(
-                re.escape(normalized_principal_diagnostic), case=False, na=False)
-        ]
-
-        if not diagnostic_matches.empty:
-            match = diagnostic_matches.iloc[0]
-            return {
-                "icd_code": match["icd_code"],
-                "principal_diagnostic": match["principal_diagnostic"]
-            }
-
-        similar_diagnostics = self.vector_store.similarity_search(
+        similar_diagnostics = self.vector_store.similarity_search_with_score(
             normalized_principal_diagnostic, k=5)
 
-        similar_diagnostics_with_icd = [
-            {
-                "icd_code": diag.metadata.get('icd_code', ''),
-                "principal_diagnostic": diag.metadata.get('principal_diagnostic', '')
+        if (similar_diagnostics[-1][1] >= self.threshold):
+            return {
+                "icd_code": similar_diagnostics[-1][0].metadata.get('icd_code', ''),
+                "principal_diagnostic": similar_diagnostics[-1][0].metadata.get('principal_diagnostic', '')
             }
-            for diag in similar_diagnostics
-        ]
 
         similar_diagnostics_text = "\n".join(
-            f"- {desc.metadata.get('principal_diagnostic', '')}" for desc in similar_diagnostics)
+            f"- {diag[0].metadata.get('principal_diagnostic', '')}" for diag in similar_diagnostics)
 
         prompt = PromptTemplate.from_template(self.prompt)
 
-        similarity_chain = prompt | self.llm
+        similarity_chain = prompt | self.llm | StrOutputParser()
 
         try:
             result = similarity_chain.invoke({
@@ -71,38 +46,51 @@ class DiagnosticNormalizerRAG:
                 "similar_diagnostics": similar_diagnostics_text,
             })
 
-            for item in similar_diagnostics_with_icd:
-                if result == item["principal_diagnostic"]:
+            for diag in similar_diagnostics:
+                if result.lower().strip() == diag[0].metadata["principal_diagnostic"].lower():
                     return {
-                        "icd_code": item["icd_code"],
-                        "principal_diagnostic": item["principal_diagnostic"]
+                        "icd_code": diag[0].metadata["icd_code"],
+                        "principal_diagnostic": diag[0].metadata["principal_diagnostic"]
                     }
 
         except Exception as e:
             raise Exception(
                 f"Error al invocar el modelo para normalizar el diagnóstico: {e}")
 
+        import rapidfuzz.fuzz as fuzz
+        best_match = None
+        best_score = 0
+
+        for item in similar_diagnostics:
+            score = fuzz.ratio(result.lower(), item[0].metadata.get(
+                'principal_diagnostic', '').lower())
+            if score > FW_RATION and score > best_score:
+                best_score = score
+                best_match = item
+
+        if best_match:
+            return {
+                "icd_code": best_match[0].metadata["icd_code"],
+                "principal_diagnostic": best_match[0].metadata["principal_diagnostic"]
+            }
+
         return {
-            "icd_code": similar_diagnostics_with_icd[0]["icd_code"],
-            "principal_diagnostic": similar_diagnostics_with_icd[0]["principal_diagnostic"]
+            "icd_code": "N/A",
+            "principal_diagnostic": "N/A"
         }
 
 
-class CustomParser(PydanticOutputParser):
-    _rag_system: DiagnosticNormalizerRAG | None = PrivateAttr()
-    _llm: OllamaLLM | None = PrivateAttr()
-
+class CustomParser(BaseOutputParser):
     def __init__(self, chroma_db: Chroma | None, llm: OllamaLLM, prompt: str, csv_path: str = "icd_dataset.csv", **kwargs):
-        kwargs.setdefault("pydantic_object", EvolutionTextDiagnosticSchema)
-        super().__init__(**kwargs)
+        super().__init__()
+        self._llm = llm
         if chroma_db is None:
             self._rag_system = None
-            self._llm = llm
         else:
             self._rag_system = DiagnosticNormalizerRAG(
-                csv_path, llm, chroma_db, prompt)
+                chroma_db, llm, prompt, csv_path)
 
-    def include_icd_code(self, llm: OllamaLLM, principal_diagnostic: str) -> dict:
+    def generate_icd_code(self, llm: OllamaLLM, principal_diagnostic: str) -> dict:
         prompt = PromptTemplate.from_template(
             """Eres un experto en medicina y diagnóstico.
             Tu tarea es encontrar el código CIE-10 para una enfermedad específica.
@@ -111,7 +99,7 @@ class CustomParser(PydanticOutputParser):
             Por ejemplo: M06.4, M06.33, M05.0"""
         )
 
-        icd_chain = prompt | llm
+        icd_chain = prompt | llm | StrOutputParser()
 
         try:
             icd_code = icd_chain.invoke(
@@ -125,18 +113,22 @@ class CustomParser(PydanticOutputParser):
             raise Exception(
                 f"Error al invocar el modelo para normalizar el diagnóstico: {e}")
 
-    def parse_result(self, result: list[Generation], *, partial: bool = False) -> Optional[EvolutionTextDiagnosticSchema]:
+    def parse(self, result: list[Generation], *, partial: bool = False) -> dict:
         try:
-            parsed: BaseModel = super().parse_result(result)
-            parsed = parsed.model_dump()
+            if isinstance(result, list) and all(isinstance(x, Generation) for x in result):
+                principal_diagnostic = result[0].text.strip()
+            elif isinstance(result, str):
+                principal_diagnostic = result.strip()
+            else:
+                principal_diagnostic = str(result).strip()
 
             if self._rag_system is None:
-                generated = self.include_icd_code(
-                    self._llm, parsed["principal_diagnostic"])
+                generated = self.generate_icd_code(
+                    self._llm, principal_diagnostic)
                 parsed = generated
             else:
                 normalized = self._rag_system.normalize_diagnostic(
-                    principal_diagnostic=parsed["principal_diagnostic"])
+                    principal_diagnostic=principal_diagnostic)
                 parsed = normalized
 
             if (len(parsed["icd_code"]) > 3):
@@ -144,7 +136,6 @@ class CustomParser(PydanticOutputParser):
                     "." + parsed["icd_code"][3:]
 
             return parsed
-        except Exception:
-            if partial:
-                return None
-            raise
+        except Exception as e:
+            raise Exception(
+                f"Error al intentar parsear el resultado: {e}")

@@ -16,15 +16,11 @@ def evolution_text_analysis(
     num_batches: int,
     total_evolution_texts_to_process: int,
 ):
-    expansion_model = OllamaLLM(
+
+
+    model = OllamaLLM(
         model=model_name,
         temperature=0
-    )
-
-    diagnostic_model = OllamaLLM(
-        model=model_name,
-        temperature=0,
-        format="json"
     )
 
     total_evolution_texts_to_process = min(
@@ -38,13 +34,13 @@ def evolution_text_analysis(
     diagnosis_prompt = PromptTemplate.from_template(prompts["diagnostic_prompt"])
 
     # Parser
-    parser = CustomParser(chroma_db, expansion_model, prompts["rag_prompt"])
+    parser = CustomParser(chroma_db, model, prompts["rag_prompt"])
 
     # Expansion chain
-    expand_chain = expand_prompt | expansion_model | StrOutputParser()
+    expand_chain = expand_prompt | model | StrOutputParser()
 
     # Diagnosis chain
-    diagnosis_chain = diagnosis_prompt | diagnostic_model | parser
+    diagnosis_chain = diagnosis_prompt | model | parser
 
     full_chain = (
         expand_chain
