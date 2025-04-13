@@ -1,9 +1,11 @@
+import re
 from typing import Dict, Optional
 
-from langchain_chroma import Chroma
 import pandas as pd
 from langchain.output_parsers import PydanticOutputParser
+from langchain_core.output_parsers import StrOutputParser
 from langchain.prompts import PromptTemplate
+from langchain_chroma import Chroma
 from langchain_core.outputs import Generation
 from langchain_ollama.llms import OllamaLLM
 from pydantic import BaseModel, Field, PrivateAttr
@@ -56,7 +58,7 @@ class DiagnosticNormalizerRAG:
             }
             for diag in similar_diagnostics
         ]
-        
+
         similar_diagnostics_text = "\n".join(
             f"- {desc.metadata.get('principal_diagnostic', '')}" for desc in similar_diagnostics)
 
@@ -78,8 +80,8 @@ class DiagnosticNormalizerRAG:
                     }
 
         except Exception as e:
-            raise Exception(f"Error al invocar el modelo para normalizar el diagnóstico: {e}")
-
+            raise Exception(
+                f"Error al invocar el modelo para normalizar el diagnóstico: {e}")
 
         return {
             "icd_code": similar_diagnostics_with_icd[0]["icd_code"],
@@ -88,22 +90,53 @@ class DiagnosticNormalizerRAG:
 
 
 class CustomParser(PydanticOutputParser):
-    _rag_system: DiagnosticNormalizerRAG = PrivateAttr()
+    _rag_system: DiagnosticNormalizerRAG | None = PrivateAttr()
+    _llm: OllamaLLM | None = PrivateAttr()
 
-    def __init__(self, chroma_db:Chroma, llm: OllamaLLM, prompt:str, csv_path: str = "icd_dataset.csv", **kwargs):
+    def __init__(self, chroma_db: Chroma | None, llm: OllamaLLM, prompt: str, csv_path: str = "icd_dataset.csv", **kwargs):
         kwargs.setdefault("pydantic_object", EvolutionTextDiagnosticSchema)
         super().__init__(**kwargs)
-        self._rag_system = DiagnosticNormalizerRAG(csv_path, llm, chroma_db, prompt)
+        if chroma_db is None:
+            self._rag_system = None
+            self._llm = llm
+        else:
+            self._rag_system = DiagnosticNormalizerRAG(
+                csv_path, llm, chroma_db, prompt)
+
+    def include_icd_code(self, llm: OllamaLLM, principal_diagnostic: str) -> dict:
+        prompt = PromptTemplate.from_template(
+            "¿Cuál es el código CIE-10 para la enfermedad '{principal_diagnostic}'? "
+            "Sólamente devuelve el código CIE-10 sin ningún otro texto. "
+            "Por ejemplo: 'M06.4', 'M06.33', 'M05.0'"
+        )
+
+        icd_chain = prompt | llm
+
+        try:
+            icd_code = icd_chain.invoke(
+                {"principal_diagnostic": principal_diagnostic})
+            icd_code = re.sub(r"[\n\r\s\.]", "", icd_code.strip())
+            return {
+                "icd_code": icd_code,
+                "principal_diagnostic": principal_diagnostic
+            }
+        except Exception as e:
+            raise Exception(
+                f"Error al invocar el modelo para normalizar el diagnóstico: {e}")
 
     def parse_result(self, result: list[Generation], *, partial: bool = False) -> Optional[EvolutionTextDiagnosticSchema]:
         try:
             parsed: BaseModel = super().parse_result(result)
             parsed = parsed.model_dump()
-            
-            normalized = self._rag_system.normalize_diagnostic(
-                principal_diagnostic=parsed["principal_diagnostic"])
 
-            parsed = normalized
+            if self._rag_system is None:
+                generated = self.include_icd_code(
+                    self._llm, parsed["principal_diagnostic"])
+                parsed = generated
+            else:
+                normalized = self._rag_system.normalize_diagnostic(
+                    principal_diagnostic=parsed["principal_diagnostic"])
+                parsed = normalized
 
             if (len(parsed["icd_code"]) > 3):
                 parsed["icd_code"] = parsed["icd_code"][:3] + \

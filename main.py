@@ -66,7 +66,7 @@ if __name__ == "__main__":
     evolution_texts = get_evolution_texts(evolution_texts_file)
     args = get_args(len(evolution_texts))
 
-    chroma_db = get_chroma_db()
+    chroma_db = get_chroma_db() if args.normalization_mode else None
 
     if args.test or args.test_prompts:
         run_test_analysis_mode(

@@ -72,10 +72,10 @@ def get_args(num_evolution_texts: int):
                         action="store_true", dest="test_prompts")
     parser.add_argument("-v", "--verbose",
                         action="store_true", dest="verbose_mode")
-    parser.add_argument("-N", "--no-normalization", action="store_false",
-                        dest="normalize_results", help="Don't normalize results via RAG")
-    parser.add_argument("-E", "--no-expansion", action="store_false",
-                        dest="expansion_mode", help="Don't expand evolution texts")
+    parser.add_argument("-E", "--expand", action="store_true",
+                        dest="expansion_mode", help="Expand evolution texts")
+    parser.add_argument("-N", "--normalize", action="store_true",
+                        dest="normalization_mode", help="Normalize results via RAG")
 
     return parser.parse_args()
 
@@ -122,7 +122,7 @@ def _create_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomi
     print(
         f"\r{_color_text('[INFO]')} Chroma database not found. Creating new one from {csv_path}...", end="")
 
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path, quotechar="\"")
     df["text"] = df["principal_diagnostic"] + ":" + df["icd_code"]
     texts = df["text"].tolist()
     metadatas = df[["principal_diagnostic", "icd_code"]
