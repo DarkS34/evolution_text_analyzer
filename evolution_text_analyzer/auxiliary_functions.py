@@ -120,11 +120,13 @@ def _create_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomi
     csv_path: str = "icd_dataset.csv"
 
     print(
-        f"{_color_text('[INFO]')} Indice Chroma no encontrado. Creando nuevo desde {csv_path}...\r", end="")
+        f"\r{_color_text('[INFO]')} Chroma database not found. Creating new one from {csv_path}...", end="")
+
     df = pd.read_csv(csv_path)
-    df["text"] = df["code"] + ": " + df["description"]
+    df["text"] = df["principal_diagnostic"] + ":" + df["icd_code"]
     texts = df["text"].tolist()
-    metadatas = df[["code", "description"]].to_dict(orient="records")
+    metadatas = df[["principal_diagnostic", "icd_code"]
+                   ].to_dict(orient="records")
 
     try:
         embeddings = OllamaEmbeddings(model=model_name)
@@ -145,6 +147,11 @@ def _create_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomi
 def get_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomic-embed-text:latest") -> Chroma:
     index_dir = Path(index_path)
 
+    if not get_listed_models([model_name], True)[0]["installed"]:
+        print(
+            f"{_color_text('[INFO]')} Embedding model '{model_name}' not installed. Downloading...", end="")
+        ollama.pull(model_name)
+    
     if not index_dir.exists():
         _create_chroma_db(index_path, model_name)
 
@@ -224,7 +231,7 @@ def display_model_table(models: list[dict]) -> None:
     }
 
     header = (
-        f"{'ID'.rjust(4)}  "
+        f"\r{'ID'.rjust(4)}  "
         f"{'NAME'.ljust(col_widths['name'])}"
         f"{'AVAILABLE'.ljust(col_widths['available'])}"
         f"{'SIZE'.ljust(col_widths['details']-5)}"
@@ -246,23 +253,22 @@ def display_model_table(models: list[dict]) -> None:
 
 
 def choose_model(models: list[str], installed_only: bool = False) -> list[dict] | None:
-    try:
-        listed = get_listed_models(models, installed_only)
-        if not listed:
-            print("No models available to choose from.")
-            return None
+    listed = get_listed_models(models, installed_only)
+    if not listed:
+        print(
+            f"{_color_text('[ERROR]', 'red')} No models available to choose from.")
+        exit(1)
 
-        display_model_table(listed)
-        while True:
-            choice = input(f"\nSelect model (1 - {len(listed)}): ").strip()
-            if choice.isnumeric() and 1 <= int(choice) <= len(listed):
-                selected = listed[int(choice) - 1]
-                return [selected] if check_model(selected) else None
-            print(
-                f"{_color_text('[ERROR]', 'red')}Invalid selection. Please try again.")
-    except (FileNotFoundError, ValueError) as e:
-        print(f"Error: {e}")
-        return None
+    display_model_table(listed)
+    while True:
+        choice = input(f"\nSelect model (1 - {len(listed)}): ").strip()
+
+        if choice.isnumeric() and 1 <= int(choice) <= len(listed):
+            selected = listed[int(choice) - 1]
+            return [selected] if check_model(selected) else None
+
+        print(
+            f"{_color_text('[ERROR]', 'red')} Invalid selection. Please try again.")
 
 
 def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> None:
@@ -277,10 +283,10 @@ def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> N
             )
             if evaluated_text.processed_output.processing_error:
                 print(
-                    f"Processing Error: {evaluated_text.processed_output.processing_error}")
+                    f"\tProcessing Error: {evaluated_text.processed_output.processing_error}")
             if evaluated_text.processed_output.validation_error:
                 print(
-                    f"Validation Error: {evaluated_text.processed_output.validation_error}")
+                    f"\tValidation Error: {evaluated_text.processed_output.validation_error}")
         print()
     performance = results.performance
     accuracy = performance.accuracy

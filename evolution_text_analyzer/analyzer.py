@@ -9,7 +9,7 @@ from .auxiliary_functions import print_execution_progression
 
 def evolution_text_analysis(
     model_name: str,
-    diagnosis_prompt_content: str,
+    prompts: dict[str],
     evolution_texts: list[dict],
     chroma_db,
     expansion_mode: bool,
@@ -18,16 +18,14 @@ def evolution_text_analysis(
 ):
     expansion_model = OllamaLLM(
         model=model_name,
-        temperature=0,
-        seed=1,
+        temperature=0
     )
 
     diagnostic_model = OllamaLLM(
         model=model_name,
         temperature=0,
         verbose=False,
-        format="json",
-        seed=1,
+        format="json"
     )
 
     total_evolution_texts_to_process = min(
@@ -36,34 +34,12 @@ def evolution_text_analysis(
     num_batches = min(num_batches, len(evolution_texts))
 
     # Prompt
+    expand_prompt = PromptTemplate.from_template(prompts["expand_diagnostic_prompt"])
 
-    # Prompt 1: Expansión de texto clínico
-    expand_prompt = PromptTemplate.from_template(
-        """
-        Eres un experto médico con amplia experiencia redactando y corrigiendo historiales clínicos en lenguaje técnico claro y preciso.
-
-        ### Objetivo:
-        Tomar un texto clínico abreviado y:
-        - Expandir abreviaciones médicas y tecnicismos.
-        - Corregir errores ortográficos y gramaticales.
-        - Mantener la **estructura y formato original** del texto.
-        - No eliminar ni añadir información nueva.
-
-        ### Texto original:
-        \"\"\"
-        {evolution_text}
-        \"\"\"
-
-        ### Resultado:
-        Devuelve únicamente el texto corregido y expandido, sin explicaciones.
-        """
-    )
-
-    # Prompt 2: Diagnóstico
-    diagnosis_prompt = PromptTemplate.from_template(diagnosis_prompt_content)
+    diagnosis_prompt = PromptTemplate.from_template(prompts["diagnostic_prompt"])
 
     # Parser
-    parser = CustomParser(chroma_db, diagnostic_model)
+    parser = CustomParser(chroma_db, diagnostic_model, prompts["rag_prompt"])
 
     # Expansion chain
     expand_chain = expand_prompt | expansion_model | StrOutputParser()
@@ -76,7 +52,7 @@ def evolution_text_analysis(
         | RunnableLambda(lambda x: {"evolution_text": x})
         | diagnosis_chain
     )
-
+    
     # Función para procesar un registro
     def process_evolution_text(evolution_text: str):
         try:
