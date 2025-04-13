@@ -301,7 +301,7 @@ def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> N
         f"\t{_color_text('Incorrect outputs', 'red')}: {incorrect}% ({int((incorrect / 100) * total)}/{total})\n"
         f"\tErrors: {errors}% ({int((errors / 100) * total)}/{total})\n\n"
         f"\tTotal records processed: {total}\n"
-        f"\tDuration: {performance.duration} s.", end="", flush=True)
+        f"\tDuration: {performance.duration} s.", flush=True)
 
 
 def update_results(results_path: Path, partial_result: dict, models_results: list) -> None:

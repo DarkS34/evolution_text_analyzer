@@ -3,7 +3,6 @@ from typing import Dict, Optional
 
 import pandas as pd
 from langchain.output_parsers import PydanticOutputParser
-from langchain_core.output_parsers import StrOutputParser
 from langchain.prompts import PromptTemplate
 from langchain_chroma import Chroma
 from langchain_core.outputs import Generation
@@ -38,7 +37,7 @@ class DiagnosticNormalizerRAG:
 
         diagnostic_matches = self.df[
             self.df['principal_diagnostic'].str.contains(
-                normalized_principal_diagnostic, case=False, na=False)
+                re.escape(normalized_principal_diagnostic), case=False, na=False)
         ]
 
         if not diagnostic_matches.empty:
@@ -105,9 +104,11 @@ class CustomParser(PydanticOutputParser):
 
     def include_icd_code(self, llm: OllamaLLM, principal_diagnostic: str) -> dict:
         prompt = PromptTemplate.from_template(
-            "¿Cuál es el código CIE-10 para la enfermedad '{principal_diagnostic}'? "
-            "Sólamente devuelve el código CIE-10 sin ningún otro texto. "
-            "Por ejemplo: 'M06.4', 'M06.33', 'M05.0'"
+            """Eres un experto en medicina y diagnóstico.
+            Tu tarea es encontrar el código CIE-10 para una enfermedad específica.
+            ¿Cuál es el código CIE-10 para la enfermedad '{principal_diagnostic}'? 
+            Sólamente devuelve el código CIE-10 sin ningún otro texto. 
+            Por ejemplo: M06.4, M06.33, M05.0"""
         )
 
         icd_chain = prompt | llm

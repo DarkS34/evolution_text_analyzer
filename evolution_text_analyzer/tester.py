@@ -163,15 +163,17 @@ def evaluate_analysis(
 ):
     test_prompts, prompts = prompts_info
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    normalization_mode = chroma_db is not None
+    aditional_info = "_N" if normalization_mode else "" + "_E" if expansion_mode else ""
     if len(models) == 1:
-        if not test_prompts:
+        if not test_prompts or len(prompts) == 1:
             evaluation_results = evaluate_model(
                 models[0], prompts[opt_prompt], evolution_texts, chroma_db, expansion_mode, num_batches, num_texts, 0)
 
             print_evaluated_results(models[0], evaluation_results, verbose)
 
             write_results(
-                testing_results_dir / f"{timestamp}_{models[0]['model_name'].replace(':', '-')}.json", evaluation_results)
+                testing_results_dir / f"{timestamp}_{models[0]['model_name'].replace(':', '-')}{aditional_info}.json", evaluation_results)
         else:
             all_evaluations_results = []
             for prompt_index, prompt in enumerate(prompts):
@@ -179,18 +181,19 @@ def evaluate_analysis(
                     models[0], prompt, evolution_texts, chroma_db, expansion_mode, num_batches, num_texts, prompt_index)
 
                 update_results(
-                    testing_results_dir / f"{timestamp}_{models[0]['model_name'].replace(':', '-')}_all_prompts.json", evaluation_results, all_evaluations_results)
+                    testing_results_dir / f"{timestamp}_{models[0]['model_name'].replace(':', '-')}_all_prompts{aditional_info}.json", evaluation_results, all_evaluations_results)
     else:
         all_evaluations_results = []
         testing_results_dir = testing_results_dir / "all_listed_models"
         testing_results_dir.mkdir(parents=True, exist_ok=True)
         for model in models:
             if check_model(model):
-                if not test_prompts:
+                if not test_prompts or len(prompts) == 1:
                     evaluation_results = evaluate_model(
                         model, prompts[opt_prompt], evolution_texts, chroma_db, expansion_mode, num_batches, num_texts, 0)
                     update_results(
-                        testing_results_dir / f"{timestamp}_{timestamp}.json",
+                        testing_results_dir /
+                        f"{timestamp}_{timestamp}{aditional_info}.json",
                         evaluation_results,
                         all_evaluations_results
                     )
@@ -199,7 +202,8 @@ def evaluate_analysis(
                         evaluation_results = evaluate_model(
                             model, prompt, evolution_texts, chroma_db, expansion_mode, num_batches, num_texts, prompt_index)
                         update_results(
-                            testing_results_dir / f"{timestamp}_all_prompts.json",
+                            testing_results_dir /
+                            f"{timestamp}_all_prompts{aditional_info}.json",
                             evaluation_results,
                             all_evaluations_results
                         )
