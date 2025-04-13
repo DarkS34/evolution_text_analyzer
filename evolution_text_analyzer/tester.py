@@ -104,7 +104,7 @@ def calculate_metrics(
 
 def evaluate_model(
     model_info: dict,
-    prompt: str,
+    prompt: dict,
     evolution_texts: list[dict],
     chroma_db,
     expansion_mode: bool,
@@ -151,7 +151,7 @@ def evaluate_model(
 
 def evaluate_analysis(
     models: list[dict],
-    prompts_info: tuple[bool, list[str]],
+    prompts_info: tuple[bool, list[dict]],
     opt_prompt: int,
     evolution_texts: list[dict],
     testing_results_dir: Path,

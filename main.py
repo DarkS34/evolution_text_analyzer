@@ -36,13 +36,13 @@ def run_test_analysis_mode(models: list[str], prompts: list[dict], opt_prompt: i
         args.verbose_mode,
     )
 
-def run_analysis_mode(model: str, prompt: str, evolution_texts: list, chroma_db, args):
+def run_analysis_mode(model: str, prompts: str, evolution_texts: list, chroma_db, args):
     results_dir = config_file.parent / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
 
     results = evolution_text_analysis(
         model,
-        prompt,
+        prompts,
         evolution_texts,
         chroma_db,
         args.expansion_mode,
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     evolution_texts = get_evolution_texts(evolution_texts_file)
     args = get_args(len(evolution_texts))
 
-    chroma_db = get_chroma_db() if args.normalize_results else None
+    chroma_db = get_chroma_db()
 
     if args.test or args.test_prompts:
         run_test_analysis_mode(
