@@ -17,7 +17,6 @@ def evolution_text_analysis(
     total_evolution_texts_to_process: int,
 ):
 
-
     model = OllamaLLM(
         model=model_name,
         temperature=0
@@ -29,12 +28,15 @@ def evolution_text_analysis(
     num_batches = min(num_batches, len(evolution_texts))
 
     # Prompt
-    expand_prompt = PromptTemplate.from_template(prompts["expand_diagnostic_prompt"])
+    expand_prompt = PromptTemplate.from_template(
+        prompts["expand_diagnostic_prompt"])
 
-    diagnosis_prompt = PromptTemplate.from_template(prompts["diagnostic_prompt"])
+    diagnosis_prompt = PromptTemplate.from_template(
+        prompts["diagnostic_prompt"])
 
     # Parser
-    parser = CustomParser(chroma_db, model, prompts["rag_prompt"])
+    parser = CustomParser(chroma_db, model, prompts["parser_prompts"]["rag_prompt"]
+                          if chroma_db is not None else prompts["parser_prompts"]["icd_code_prompt"])
 
     # Expansion chain
     expand_chain = expand_prompt | model | StrOutputParser()
@@ -47,7 +49,7 @@ def evolution_text_analysis(
         | RunnableLambda(lambda x: {"evolution_text": x})
         | diagnosis_chain
     )
-    
+
     # Función para procesar un registro
     def process_evolution_text(evolution_text: str):
         try:

@@ -86,31 +86,35 @@ class CustomParser(BaseOutputParser):
         self._llm = llm
         if chroma_db is None:
             self._rag_system = None
+            self._prompt = prompt
         else:
             self._rag_system = DiagnosticNormalizerRAG(
                 chroma_db, llm, prompt, csv_path)
 
-    def generate_icd_code(self, llm: OllamaLLM, principal_diagnostic: str) -> dict:
-        prompt = PromptTemplate.from_template(
-            """Eres un experto en medicina y diagnóstico.
-            Tu tarea es encontrar el código CIE-10 para una enfermedad específica.
-            ¿Cuál es el código CIE-10 para la enfermedad '{principal_diagnostic}'? 
-            Sólamente devuelve el código CIE-10 sin ningún otro texto. 
-            Por ejemplo: M06.4, M06.33, M05.0"""
-        )
+    def generate_icd_code(self, principal_diagnostic: str) -> dict:
+        prompt = PromptTemplate.from_template(self._prompt)
 
-        icd_chain = prompt | llm | StrOutputParser()
+        icd_chain = prompt | self._llm | StrOutputParser()
 
         try:
             icd_code = icd_chain.invoke(
                 {"principal_diagnostic": principal_diagnostic})
-            icd_code_re = re.search(r'([A-Z]\d+\.\d+)', icd_code)
-            icd_code_re = re.sub(r"[\n\r\s\.]", "", icd_code_re.group(1))
-            
-            return {
-                "icd_code": icd_code,
-                "principal_diagnostic": principal_diagnostic
-            }
+
+            # Buscar el patrón ICD
+            icd_match = re.search(r'([A-Z]\d+\.\d+)', icd_code)
+
+            # Verificar si se encontró una coincidencia
+            if icd_match:
+                cleaned_icd = re.sub(r"[\n\r\s\.]", "", icd_match.group(1))
+                return {
+                    "icd_code": cleaned_icd,
+                    "principal_diagnostic": principal_diagnostic
+                }
+            else:
+                return {
+                    "icd_code": "N/A",
+                    "principal_diagnostic": principal_diagnostic
+                }
         except Exception as e:
             raise Exception(
                 f"Error al invocar el modelo para normalizar el diagnóstico: {e}")
@@ -125,8 +129,7 @@ class CustomParser(BaseOutputParser):
                 principal_diagnostic = str(result).strip()
 
             if self._rag_system is None:
-                generated = self.generate_icd_code(
-                    self._llm, principal_diagnostic)
+                generated = self.generate_icd_code(principal_diagnostic)
                 parsed = generated
             else:
                 normalized = self._rag_system.normalize_diagnostic(
