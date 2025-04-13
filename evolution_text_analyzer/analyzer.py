@@ -24,7 +24,6 @@ def evolution_text_analysis(
     diagnostic_model = OllamaLLM(
         model=model_name,
         temperature=0,
-        verbose=False,
         format="json"
     )
 
@@ -39,7 +38,7 @@ def evolution_text_analysis(
     diagnosis_prompt = PromptTemplate.from_template(prompts["diagnostic_prompt"])
 
     # Parser
-    parser = CustomParser(chroma_db, diagnostic_model, prompts["rag_prompt"])
+    parser = CustomParser(chroma_db, expansion_model, prompts["rag_prompt"])
 
     # Expansion chain
     expand_chain = expand_prompt | expansion_model | StrOutputParser()
