@@ -2,3 +2,8 @@
 testing_results
 results
 __pycache__
+.env
+icd_vector_db
+*.egg-info/
+.vscode/
+evolution_texts_resolved_simple.csv
