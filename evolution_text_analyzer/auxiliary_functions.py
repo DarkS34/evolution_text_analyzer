@@ -23,11 +23,11 @@ EMBEDDINGS_MODEL = "nomic-embed-text:latest"
 def _color_text(text, color="green"):
     """
     Format text with ANSI color codes for terminal output.
-    
+
     Args:
         text: The text to be colored
         color: Color name to use (red, green, bold, cyan)
-    
+
     Returns:
         String formatted with ANSI color codes
     """
@@ -42,10 +42,10 @@ def _color_text(text, color="green"):
 def check_ollama_connection(url: str = "http://localhost:11434") -> None:
     """
     Verify that Ollama server is running and accessible.
-    
+
     Args:
         url: URL of the Ollama server to check
-    
+
     Returns:
         None, exits with error code 1 if connection fails
     """
@@ -63,10 +63,10 @@ def check_ollama_connection(url: str = "http://localhost:11434") -> None:
 def get_args(num_evolution_texts: int):
     """
     Parse command line arguments for the application.
-    
+
     Args:
         num_evolution_texts: Total number of evolution texts available
-    
+
     Returns:
         Parsed command line arguments
     """
@@ -94,13 +94,13 @@ def get_args(num_evolution_texts: int):
 def get_evolution_texts(path: Path):
     """
     Load evolution texts from CSV or JSON file.
-    
+
     Args:
         path: Path to the file containing evolution texts
-    
+
     Returns:
         List of dictionaries containing evolution texts
-    
+
     Raises:
         FileNotFoundError: If the file doesn't exist
         ValueError: If the file format is not supported
@@ -128,13 +128,13 @@ def get_evolution_texts(path: Path):
 def get_analyzer_configuration(path: Path):
     """
     Load analyzer configuration from JSON file.
-    
+
     Args:
         path: Path to the configuration file
-    
+
     Returns:
         Dictionary containing analyzer configuration
-    
+
     Raises:
         FileNotFoundError: If the file doesn't exist
         ValueError: If the JSON format is invalid
@@ -150,11 +150,11 @@ def get_analyzer_configuration(path: Path):
 def _create_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomic-embed-text:latest") -> bool:
     """
     Create a new Chroma vector database for ICD data.
-    
+
     Args:
         index_path: Directory path where the database will be stored
         model_name: Name of the embedding model to use
-    
+
     Returns:
         Chroma database object if successful, False otherwise
     """
@@ -189,10 +189,10 @@ def _create_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomi
 def get_chroma_db(index_path: str = "icd_vector_db") -> Chroma:
     """
     Get Chroma vector database for ICD data, creating it if it doesn't exist.
-    
+
     Args:
         index_path: Directory path where the database is stored
-    
+
     Returns:
         Chroma database object
     """
@@ -216,11 +216,11 @@ def get_chroma_db(index_path: str = "icd_vector_db") -> Chroma:
 def _process_model_info(raw_model: str, installed_models: list[dict]) -> ModelInfo:
     """
     Process raw model information into a structured ModelInfo object.
-    
+
     Args:
         raw_model: Name of the model
         installed_models: List of installed models from Ollama
-    
+
     Returns:
         ModelInfo object containing model details
     """
@@ -246,14 +246,14 @@ def _process_model_info(raw_model: str, installed_models: list[dict]) -> ModelIn
 def get_listed_models(raw_models: list[str], installed_only: bool = False) -> list[dict]:
     """
     Get information about specified models, optionally filtering for installed ones.
-    
+
     Args:
         raw_models: List of model names to get information for
         installed_only: If True, return only installed models
-    
+
     Returns:
         List of dictionaries containing model information
-    
+
     Raises:
         ValueError: If the raw_models list is empty
     """
@@ -269,10 +269,10 @@ def get_listed_models(raw_models: list[str], installed_only: bool = False) -> li
 def download_model(model: dict) -> bool:
     """
     Download a model using Ollama.
-    
+
     Args:
         model: Dictionary containing model information
-    
+
     Returns:
         True if download was successful, False otherwise
     """
@@ -299,14 +299,14 @@ def download_model(model: dict) -> bool:
 def check_model(model: dict) -> bool:
     """
     Check if a model is installed, downloading it if necessary.
-    
+
     Args:
         model: Dictionary containing model information
-    
+
     Returns:
         True if the model is available (installed or successfully downloaded), False otherwise
     """
-    if not model["installed"]:
+    if not model.get("installed", False):
         return download_model(model)
     model.pop("installed", None)
     return True
@@ -315,7 +315,7 @@ def check_model(model: dict) -> bool:
 def display_model_table(models: list[dict]) -> None:
     """
     Display a formatted table of models in the terminal.
-    
+
     Args:
         models: List of dictionaries containing model information
     """
@@ -350,14 +350,14 @@ def display_model_table(models: list[dict]) -> None:
 def choose_model(models: list[str], installed_only: bool = False) -> list[dict] | None:
     """
     Display a list of models and prompt the user to choose one.
-    
+
     Args:
         models: List of model names
         installed_only: If True, only show installed models
-    
+
     Returns:
         List containing a single dictionary with the chosen model information, or None if selection failed
-    
+
     Raises:
         SystemExit: If no models are available to choose from
     """
@@ -382,7 +382,7 @@ def choose_model(models: list[str], installed_only: bool = False) -> list[dict] 
 def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> None:
     """
     Print evaluation results for a model.
-    
+
     Args:
         model: Dictionary containing model information
         results: Evaluation results as a BaseModel
@@ -422,13 +422,15 @@ def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> N
 def write_results(results_path: str, results: dict) -> None:
     """
     Write analysis results to a JSON file.
-    
+
     Args:
         results_path: Path to write the results to
         results: Dictionary containing analysis results
     """
     with open(results_path, mode="w", encoding="utf-8") as file:
         json.dump(results, file, indent=3, ensure_ascii=False)
+
+    print(f"{_color_text('COMPLETED')} Results available at:\n{results_path}", end="\n\n")
 
 
 def print_execution_progression(
@@ -438,15 +440,15 @@ def print_execution_progression(
 ) -> None:
     """
     Print the progress of text processing in the terminal.
-    
+
     Args:
         model_name: Name of the model being used
         processed_texts: Number of texts processed so far
         total_texts: Total number of texts to process
     """
-    
+
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
-    
+
     print(
         f"\r{_color_text('TESTING')} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
         end="",

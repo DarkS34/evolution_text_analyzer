@@ -38,7 +38,8 @@ from .auxiliary_functions import (
     get_listed_models,
     choose_model,
     write_results,
-    check_ollama_connection
+    check_ollama_connection,
+    check_model
 )
 from ._validator import validate_result
 from ._custom_parser import CustomParser, DiagnosticNormalizerRAG
@@ -61,6 +62,7 @@ __all__ = [
     "choose_model",
     "write_results",
     "check_ollama_connection",
+    "check_model",
     "validate_result",
     "CustomParser",
     "DiagnosticNormalizerRAG"

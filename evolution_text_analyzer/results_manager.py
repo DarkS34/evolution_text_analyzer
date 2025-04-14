@@ -87,7 +87,7 @@ class ResultsManager:
         """
 
         model_name = result.model_info.get(
-            "model_name", "unknown").replace(r"[:_]", "")
+            "model_name", "unknown").replace(":", "-").replace("_", "-").replace(".", "")
         normalized_tag = "_N" if result.performance.normalized else ""
         expanded_tag = "_E" if result.performance.expanded else ""
 

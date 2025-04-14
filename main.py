@@ -5,6 +5,7 @@ from pathlib import Path
 
 from evolution_text_analyzer.analyzer import evolution_text_analysis
 from evolution_text_analyzer.auxiliary_functions import (
+    check_model,
     check_ollama_connection,
     choose_model,
     get_analyzer_configuration,
@@ -63,6 +64,8 @@ def run_analysis_mode(model: str, prompts: dict, evolution_texts: list, chroma_d
         chroma_db: Chroma database for normalization
         args: Command line arguments
     """
+    
+    check_model({"model_name": model})
     results_dir = config_file.parent / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -95,7 +98,7 @@ if __name__ == "__main__":
 
     chroma_db = get_chroma_db() if args.normalization_mode else None
 
-    if args.test or args.test_prompts:
+    if args.test:
         run_test_analysis_mode(
             models, prompts, evolution_texts, chroma_db, args)
     else:

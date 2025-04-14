@@ -6,4 +6,3 @@ __pycache__
 icd_vector_db
 *.egg-info/
 .vscode/
-evolution_texts_resolved_simple.csv
