@@ -24,15 +24,17 @@ class ResultsManager:
             base_results_dir: Base directory for storing results
         """
         self.base_dir = base_results_dir
-        self.results_dir = self._create_timestamped_results_dir()
         self.single_model_mode = single_model_mode
+        self.results_dir = self._create_timestamped_results_dir()
         self.summary_data = []
         self.detailed_results = []
 
     def _create_timestamped_results_dir(self) -> Path:
         """Create a timestamped directory for the current evaluation run."""
+
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        results_dir = self.base_dir / f"{'individual_' if self.single_model_mode else ''}evaluation_run_{timestamp}"
+        results_dir = self.base_dir / \
+            f"{'individual_' if self.single_model_mode else ''}evaluation_run_{timestamp}"
         results_dir.mkdir(parents=True, exist_ok=True)
         return results_dir
 
@@ -84,16 +86,18 @@ class ResultsManager:
             result: The evaluation result to write
         """
         model_name = result.model_info.get(
-            "model_name", "unknown").replace(":", "-")
-        normalized_tag = "_normalized" if result.performance.normalized else ""
-        expanded_tag = "_expanded" if result.performance.expanded else ""
+            "model_name", "unknown").replace(r"[:_]", "")
+        normalized_tag = "_N" if result.performance.normalized else ""
+        expanded_tag = "_E" if result.performance.expanded else ""
 
-        filename = f"{model_name}{normalized_tag}{expanded_tag}.json"
-        file_path = self.results_dir / "individual_results" / filename
-
-        # Ensure directory exists
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
+        if self.single_model_mode:
+            filename = f"detailed_results_{model_name}{normalized_tag}{expanded_tag}.json"
+            file_path = self.results_dir / filename
+        else:
+            filename = f"{model_name}{normalized_tag}{expanded_tag}.json"
+            file_path = self.results_dir / "individual_results" / filename
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
         # Write the result
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(result.model_dump(exclude_none=True),
@@ -125,8 +129,11 @@ class ResultsManager:
         Args:
             df: DataFrame containing the summary data
         """
-        viz_dir = self.results_dir / "visualizations"
-        viz_dir.mkdir(parents=True, exist_ok=True)
+        if self.single_model_mode:
+            viz_dir = self.results_dir
+        else:
+            viz_dir = self.results_dir / "visualizations"
+            viz_dir.mkdir(parents=True, exist_ok=True)
 
         # Performance comparison chart
         plt.figure(figsize=(12, 8))

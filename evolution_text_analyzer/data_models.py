@@ -43,3 +43,10 @@ class EvaluationResult(BaseModel):
     model_info: dict
     performance: PerformanceMetrics
     evaluated_texts: Dict[str, EvaluationOutput]
+    
+class ModelInfo(BaseModel):
+    model_name: str
+    installed: bool = False
+    size: str | None = None
+    parameter_size: str | None = None
+    quantization_level: str | None = None

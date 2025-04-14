@@ -14,41 +14,33 @@ from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
 from pydantic import BaseModel, ByteSize
 
-# ------------------------
-# Data Models
-# ------------------------
+from .data_models import ModelInfo
 
-
-class ModelInfo(BaseModel):
-    model_name: str
-    installed: bool = False
-    size: str | None = None
-    parameter_size: str | None = None
-    quantization_level: str | None = None
+EMBEDDINGS_MODEL = "nomic-embed-text:latest"
 
 
 def _color_text(text, color="green"):
     colors = {
         "red": "\033[91m",
         "green": "\033[92m",
-        "yellow": "\033[93m",
         "bold": "\033[1m",
+        "cyan": "\033[96m",
+        # "yellow": "\033[93m",
         # "blue": "\033[94m",
         # "magenta": "\033[95m",
-        # "cyan": "\033[96m",
     }
-    return f"{colors.get(color, '')}{text}\033[0m"
+    return f"{colors.get(color, '')}[{text}]\033[0m"
 
 
 def check_ollama_connection(url: str = "http://localhost:11434") -> None:
     try:
         if not requests.get(url).status_code == 200:
             print(
-                f"{_color_text('[ERROR]', 'red')} An error ocurred. Imposible to connect to Ollama.\n")
+                f"{_color_text('ERROR', 'red')} An error ocurred. Imposible to connect to Ollama.\n")
             exit(1)
     except requests.ConnectionError:
         print(
-            f"{_color_text('[ERROR]', 'red')} Ollama is not running.")
+            f"{_color_text('ERROR', 'red')} Ollama is not running.")
         exit(1)
 
 
@@ -109,7 +101,7 @@ def _create_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomi
     csv_path: str = "icd_dataset.csv"
 
     print(
-        f"\r{_color_text('[INFO]')} Chroma database not found. Creating new one from {csv_path}...", end="")
+        f"\r{_color_text('INFO')} Chroma database not found. Creating new one from {csv_path}...", end="")
 
     df = pd.read_csv(csv_path, quotechar="\"")
     df["text"] = df["principal_diagnostic"] + ":" + df["icd_code"]
@@ -129,22 +121,22 @@ def _create_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomi
         return chroma_db
     except Exception as e:
         print(
-            f"\n{_color_text('[ERROR]', 'red')} Failed to create Chroma DB: {e}")
+            f"\n{_color_text('ERROR', 'red')} Failed to create Chroma DB: {e}")
         return False
 
 
-def get_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomic-embed-text:latest") -> Chroma:
+def get_chroma_db(index_path: str = "icd_vector_db") -> Chroma:
     index_dir = Path(index_path)
 
-    if not get_listed_models([model_name], True)[0]["installed"]:
+    if not get_listed_models([EMBEDDINGS_MODEL], True)[0]["installed"]:
         print(
-            f"{_color_text('[INFO]')} Embedding model '{model_name}' not installed. Downloading...", end="")
-        ollama.pull(model_name)
+            f"{_color_text('DOWNLOADING', 'cyan')} '{EMBEDDINGS_MODEL}' ", end="")
+        ollama.pull(EMBEDDINGS_MODEL)
 
     if not index_dir.exists():
-        _create_chroma_db(index_path, model_name)
+        _create_chroma_db(index_path, EMBEDDINGS_MODEL)
 
-    embeddings = OllamaEmbeddings(model=model_name)
+    embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
     return Chroma(
         persist_directory=str(index_dir),
         embedding_function=embeddings
@@ -183,10 +175,11 @@ def get_listed_models(raw_models: list[str], installed_only: bool = False) -> li
 
 def download_model(model: dict) -> bool:
     try:
-        print(f"\rDownloading: '{model['model_name']}'", end="")
+        print(
+            f"\r{_color_text('DOWNLOADING', 'cyan')} '{model['model_name']}'", end="")
         ollama.pull(model["model_name"])
-        updated = next((model for model in ollama.list()[
-                       "models"] if model["model"] == model["model_name"]), None)
+        updated = next((ollama_model for ollama_model in ollama.list()[
+                       "models"] if ollama_model["model"] == model["model_name"]), None)
         if updated:
             model.update({
                 "size": f"{round(ByteSize(updated['size']).to('GB'), 1)} GB",
@@ -197,7 +190,7 @@ def download_model(model: dict) -> bool:
             return True
         return False
     except (ollama.ResponseError, requests.RequestException) as e:
-        print(f"\nDownload failed: {e}")
+        print(f"\n{_color_text('ERROR')}Download failed: {e}")
         return False
 
 
@@ -241,7 +234,7 @@ def choose_model(models: list[str], installed_only: bool = False) -> list[dict] 
     listed = get_listed_models(models, installed_only)
     if not listed:
         print(
-            f"{_color_text('[ERROR]', 'red')} No models available to choose from.")
+            f"{_color_text('ERROR', 'red')} No models available to choose from.")
         exit(1)
 
     display_model_table(listed)
@@ -297,19 +290,13 @@ def print_execution_progression(
     model_name: str,
     processed_texts: int,
     total_texts: int,
-    processed_models: int = 1,
-    total_models: int = 1,
 ) -> None:
+    
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
-    if total_models == 1:
-        print(
-            f"\r{_color_text('[TESTING]')} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
-            end="",
-            flush=True,
-        )
-    else:
-        print(
-            f"\r{_color_text('[TESTING]')} Models processed {processed_models}/{total_models} | Currently {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
-            end="",
-            flush=True,
-        )
+    
+    print(
+        f"\r{_color_text('TESTING')} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
+        end="",
+        flush=True,
+    )
+
