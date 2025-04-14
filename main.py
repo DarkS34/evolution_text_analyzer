@@ -17,13 +17,13 @@ from evolution_text_analyzer.auxiliary_functions import (
 from evolution_text_analyzer.tester import evaluate_analysis
 
 
-def run_test_analysis_mode(models: list[str], prompts: list[dict], evolution_texts: list, chroma_db, args):
+def run_test_analysis_mode(models: list[str], prompts: dict, evolution_texts: list, chroma_db, args):
     """
     Run the system in test analysis mode, evaluating model performance.
 
     Args:
         models: List of model names to evaluate
-        prompts: List of prompts to use
+        prompts: prompts to use
         opt_prompt: Index of the optimal prompt
         evolution_texts: List of medical texts to analyze
         chroma_db: Chroma database for normalization
@@ -35,7 +35,7 @@ def run_test_analysis_mode(models: list[str], prompts: list[dict], evolution_tex
         if args.mode == 1
         else choose_model(models, args.only_installed_models)
     )
-    
+
     testing_results_dir = config_file.parent / "testing_results"
     testing_results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -80,7 +80,6 @@ def run_analysis_mode(model: str, prompts: dict, evolution_texts: list, chroma_d
 
 
 if __name__ == "__main__":
-
     check_ollama_connection()
 
     base_path = Path(__file__).parent

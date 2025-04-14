@@ -1,3 +1,8 @@
+"""
+Medical text analysis module for diagnostic extraction.
+This module contains functions to analyze medical evolution texts and extract 
+principal diagnoses and ICD codes using language models.
+"""
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_ollama.llms import OllamaLLM
 from langchain_core.output_parsers import StrOutputParser
@@ -16,7 +21,25 @@ def evolution_text_analysis(
     num_batches: int,
     total_evolution_texts_to_process: int,
 ):
+    """
+    Analyze medical evolution texts to extract diagnoses and ICD codes.
 
+    This function processes a set of medical evolution texts using a specified language model.
+    It can optionally expand the texts before extraction and uses a parallel processing approach
+    to improve performance.
+
+    Args:
+        model_name: Name of the language model to use for analysis
+        prompts: Dictionary containing different prompts for the analysis process
+        evolution_texts: List of dictionaries containing medical evolution texts
+        chroma_db: Chroma vector database for normalization (or None if not using normalization)
+        expansion_mode: Whether to expand the evolution texts before extraction
+        num_batches: Number of batches for parallel processing
+        total_evolution_texts_to_process: Maximum number of texts to process
+
+    Returns:
+        Dictionary mapping text IDs to extracted diagnoses and ICD codes
+    """
     model = OllamaLLM(
         model=model_name,
         temperature=0

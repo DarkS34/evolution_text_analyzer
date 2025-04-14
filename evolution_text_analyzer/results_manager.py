@@ -85,11 +85,13 @@ class ResultsManager:
         Args:
             result: The evaluation result to write
         """
+
         model_name = result.model_info.get(
             "model_name", "unknown").replace(r"[:_]", "")
         normalized_tag = "_N" if result.performance.normalized else ""
         expanded_tag = "_E" if result.performance.expanded else ""
 
+        # Change saving strategy if execute just for one model
         if self.single_model_mode:
             filename = f"detailed_results_{model_name}{normalized_tag}{expanded_tag}.json"
             file_path = self.results_dir / filename
@@ -97,8 +99,7 @@ class ResultsManager:
             filename = f"{model_name}{normalized_tag}{expanded_tag}.json"
             file_path = self.results_dir / "individual_results" / filename
             file_path.parent.mkdir(parents=True, exist_ok=True)
-            
-        # Write the result
+
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(result.model_dump(exclude_none=True),
                       f, indent=2, ensure_ascii=False)
@@ -137,11 +138,7 @@ class ResultsManager:
 
         # Performance comparison chart
         plt.figure(figsize=(12, 8))
-
-        # Sort by accuracy for the chart
         df_sorted = df.sort_values("accuracy", ascending=False)
-
-        # Select top 10 models if there are many
         if len(df_sorted) > 10:
             df_sorted = df_sorted.head(10)
 
@@ -151,7 +148,6 @@ class ResultsManager:
         incorrect = df_sorted["incorrect_outputs"]
         errors = df_sorted["errors"]
 
-        # Plot bars
         x = range(len(models))
         width = 0.25
 
@@ -161,36 +157,27 @@ class ResultsManager:
         plt.bar([i + width for i in x], errors,
                 width=width, label="Errors", color="orange")
 
-        # Add labels and legend
         plt.xlabel("Models")
         plt.ylabel("Percentage (%)")
         plt.title("Model Performance Comparison")
         plt.xticks(x, models, rotation=45, ha="right")
         plt.legend()
         plt.tight_layout()
-
-        # Save the chart
         plt.savefig(viz_dir / "performance_comparison.png", dpi=300)
         plt.close()
 
         if not self.single_model_mode:
-            # Execution time comparison
             plt.figure(figsize=(12, 6))
 
-            # Sort by execution time
             df_time_sorted = df.sort_values("duration")
 
-            # Select top 10 models if there are many
             if len(df_time_sorted) > 10:
                 df_time_sorted = df_time_sorted.head(10)
 
-            # Plot
             plt.barh(df_time_sorted["model_name"], df_time_sorted["duration"])
             plt.xlabel("Execution Time (seconds)")
             plt.title("Model Execution Time Comparison")
             plt.tight_layout()
-
-            # Save the chart
             plt.savefig(viz_dir / "execution_time_comparison.png", dpi=300)
             plt.close()
 
@@ -219,19 +206,15 @@ class ResultsManager:
         report_path = self.results_dir / "evaluation_report.txt"
 
         with open(report_path, "w", encoding="utf-8") as f:
-            # Write header
             f.write("=" * 80 + "\n")
             f.write("MEDICAL DIAGNOSTIC MODELS EVALUATION REPORT\n")
             f.write(
                 f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write("=" * 80 + "\n\n")
-
-            # Write summary section
             f.write("SUMMARY\n")
             f.write("-" * 80 + "\n")
 
             if self.summary_data:
-                # Get best model
                 best_model = self.get_best_model()
 
                 f.write(f"Total models evaluated: {len(self.summary_data)}\n")
@@ -240,14 +223,12 @@ class ResultsManager:
                 f.write(
                     f"Average accuracy across all models: {sum(m['accuracy'] for m in self.summary_data) / len(self.summary_data):.2f}%\n\n")
 
-                # Write detailed model comparison
                 f.write("MODEL COMPARISON\n")
                 f.write("-" * 80 + "\n")
                 f.write(
                     f"{'Model Name':<30} {'Accuracy':<10} {'Incorrect':<10} {'Errors':<10} {'Duration':<10}\n")
                 f.write("-" * 80 + "\n")
 
-                # Sort by accuracy
                 sorted_models = sorted(
                     self.summary_data, key=lambda x: x["accuracy"], reverse=True)
 

@@ -2,179 +2,183 @@
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-brightgreen)
 
-Un sistema avanzado para el análisis de textos médicos de evolución que extrae diagnósticos principales y códigos CIE mediante modelos de lenguaje.
+An advanced system for analyzing medical evolution texts that extracts principal diagnoses and ICD codes using language models.
 
-## 📋 Tabla de Contenidos
+## 📋 Table of Contents
 
-- [Descripción General](#descripción-general)
-- [Características](#características)
-- [Requisitos](#requisitos)
-- [Instalación](#instalación)
-- [Uso](#uso)
-  - [Argumentos de línea de comandos](#argumentos-de-línea-de-comandos)
-  - [Ejemplos de ejecución](#ejemplos-de-ejecución)
-- [Arquitectura](#arquitectura)
-- [Flujo de Procesamiento](#flujo-de-procesamiento)
-- [Estructura de Directorios](#estructura-de-directorios)
-- [Formato de Datos](#formato-de-datos)
-- [Resultados](#resultados)
-- [Licencia](#licencia)
+- [Overview](#overview)
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Command Line Arguments](#command-line-arguments)
+  - [Execution Examples](#execution-examples)
+- [Architecture](#architecture)
+- [Processing Flow](#processing-flow)
+- [Directory Structure](#directory-structure)
+- [Data Format](#data-format)
+- [Results](#results)
+- [License](#license)
 
-## 🔍 Descripción General
+## 🔍 Overview
 
-El **Medical Evolution Text Analyzer** es un sistema basado en Python diseñado para procesar textos médicos de evolución, extraer diagnósticos principales y códigos CIE (Clasificación Internacional de Enfermedades), y validar estos diagnósticos contra datos de referencia. Utiliza modelos de lenguaje a través del framework Ollama para realizar análisis semántico avanzado de textos médicos, con especial enfoque en enfermedades reumatológicas.
+The **Medical Evolution Text Analyzer** is a Python-based system designed to process medical evolution texts, extract principal diagnoses and ICD codes (International Classification of Diseases), and validate these diagnoses against reference data. It uses language models through the Ollama framework to perform advanced semantic analysis of medical texts, with a special focus on rheumatological diseases.
 
-## ✨ Características
+## ✨ Features
 
-- **Extracción automática de diagnósticos** a partir de notas clínicas
-- **Normalización de diagnósticos** mediante RAG (Retrieval Augmented Generation)
-- **Asignación de códigos CIE** a los diagnósticos extraídos
-- **Procesamiento en paralelo** para optimizar el tiempo de ejecución
-- **Evaluación de precisión** de diferentes modelos de lenguaje
-- **Expansión de texto** opcional para mejorar la extracción de información
-- **Interfaz de línea de comandos** flexible y potente
+- **Automatic diagnosis extraction** from clinical notes
+- **Diagnosis normalization** using RAG (Retrieval Augmented Generation)
+- **ICD code assignment** to extracted diagnoses
+- **Parallel processing** to optimize execution time
+- **Accuracy evaluation** of different language models
+- **Text expansion** option to improve information extraction
+- **Flexible and powerful command line interface**
 
-## 📋 Requisitos
+## 📋 Requirements
 
 - Python 3.9+
-- [Ollama](https://ollama.ai/) instalado y en ejecución
-- Gestor de paquetes UV (opcional, pero recomendado)
+- [Ollama](https://ollama.ai/) installed and running
+- UV package manager (optional, but recommended)
 
-## 💻 Instalación
+## 💻 Installation
 
-1. Clona el repositorio:
+1. Clone the repository:
    ```bash
    git clone https://github.com/username/medical-evolution-text-analyzer.git
    cd medical-evolution-text-analyzer
    ```
 
-2. Instala las dependencias utilizando UV:
+2. Install dependencies using UV:
    ```bash
    pip install uv
-   uv sync
    ```
    
-3. Sincroniza las dependencias:
+3. Sync dependencies:
    ```bash
    uv sync
    ```
 
-3. Asegúrate de que Ollama esté ejecutándose:
+3. Make sure Ollama is running:
    ```bash
    ollama start
    ```
 
-## 🚀 Uso
+## 🚀 Usage
 
-El script principal se ejecuta a través de la línea de comandos con varios argumentos para personalizar el análisis.
+The main script is executed through the command line with various arguments to customize the analysis.
 
-### Argumentos de línea de comandos
+### Command Line Arguments
 
 ```
-python main.py [opciones]
+python main.py [options]
 ```
 
-| Argumento | Descripción |
+| Argument | Description |
 |-----------|-------------|
-| `-m`, `--mode` | Modo de operación: `1` para todos los modelos, `2` para selección de modelo (predeterminado: `1`) |
-| `-b`, `--batches` | Número de lotes para procesamiento paralelo (predeterminado: `1`) |
-| `-n`, `--num-texts` | Número de textos a procesar (predeterminado: todos) |
-| `-t`, `--test` | Modo de prueba |
-| `-tp`, `--test-prompts` | Probar diferentes prompts |
-| `-i`, `--installed` | Usar solo modelos instalados |
-| `-v`, `--verbose` | Modo detallado |
-| `-E`, `--expand` | Expandir textos de evolución |
-| `-N`, `--normalize` | Normalizar resultados mediante RAG |
+| `-m`, `--mode` | Operation mode: `1` for all models, `2` for model selection (default: `1`) |
+| `-b`, `--batches` | Number of batches for parallel processing (default: `1`) |
+| `-n`, `--num-texts` | Number of texts to process (default: all) |
+| `-t`, `--test` | Test mode |
+| `-i`, `--installed` | Use only installed models |
+| `-v`, `--verbose` | Verbose mode |
+| `-E`, `--expand` | Expand evolution texts |
+| `-N`, `--normalize` | Normalize results using RAG |
 
-### Ejemplos de ejecución
+### Execution Examples
 
 ```bash
-# Seleccionar un modelo específico, modo prueba, solo usar modelos instalados, modo verboso, 
+# Select a specific model, test mode, only use installed models, verbose mode
 python main.py -tiv -m2
 
-# Ejecutar en modo prueba con expansión de texto y normalización, con solo modelos instalados
+# Run in test mode with text expansion and normalization, with only installed models
 python main.py -tiEN -m2
 ```
 
-## 🏗️ Arquitectura
+## 🏗️ Architecture
 
-El sistema se estructura en varios módulos principales:
+The system is structured into several main modules:
 
-1. **analyzer.py**: Coordina el proceso de análisis de textos médicos
-2. **_custom_parser.py**: Parsea y normaliza los diagnósticos extraídos
-3. **auxiliary_functions.py**: Proporciona funciones auxiliares para el manejo de datos
-4. **_validator.py**: Valida los resultados del diagnóstico
-5. **tester.py**: Evalúa la precisión de los modelos
+1. **analyzer.py**: Coordinates the medical text analysis process
+2. **_custom_parser.py**: Parses and normalizes extracted diagnoses
+3. **auxiliary_functions.py**: Provides auxiliary functions for data handling
+4. **_validator.py**: Validates diagnosis results
+5. **tester.py**: Evaluates model accuracy
+6. **data_models.py**: Contains Pydantic models for data structures
+7. **results_manager.py**: Manages storage and visualization of results
 
-## 📊 Flujo de Procesamiento
+## 📊 Processing Flow
 
-1. **Inicialización**:
-   - Verificación de conexión con Ollama
-   - Carga de configuración y textos de evolución
-   - Procesamiento de argumentos de la línea de comandos
+1. **Initialization**:
+   - Verification of connection with Ollama
+   - Loading configuration and evolution texts
+   - Processing command line arguments
 
-2. **Análisis de Textos**:
-   - El texto se procesa en lotes paralelos
-   - Opcionalmente se expande mediante un modelo de lenguaje
-   - Se extraen diagnósticos principales y códigos CIE
+2. **Text Analysis**:
+   - Text is processed in parallel batches
+   - Optionally expanded using a language model
+   - Principal diagnoses and ICD codes are extracted
 
-3. **Normalización** (opcional):
-   - Los diagnósticos se normalizan mediante RAG (Retrieval Augmented Generation)
-   - Se utiliza una base de datos vectorial Chroma para encontrar diagnósticos similares
+3. **Normalization** (optional):
+   - Diagnoses are normalized using RAG (Retrieval Augmented Generation)
+   - A Chroma vector database is used to find similar diagnoses
 
-4. **Validación**:
-   - Los diagnósticos extraídos se comparan con los valores de referencia
-   - Se calculan métricas de precisión, errores y salidas incorrectas
+4. **Validation**:
+   - Extracted diagnoses are compared with reference values
+   - Metrics for accuracy, errors, and incorrect outputs are calculated
 
-5. **Resultados**:
-   - Los resultados se almacenan en archivos JSON
-   - Se proporcionan métricas detalladas de rendimiento
+5. **Results**:
+   - Results are stored in JSON files
+   - Detailed performance metrics are provided
+   - Visualizations are generated for model comparison
 
-## 📁 Estructura de Directorios
+## 📁 Directory Structure
 
 ```
 .
 ├── evolution_text_analyzer/
 │   ├── __init__.py
-│   ├── analyzer.py                # Lógica de análisis principal
-│   ├── _custom_parser.py          # Parseador de diagnósticos
-│   ├── _validator.py              # Validación de resultados
-│   ├── auxiliary_functions.py     # Funciones auxiliares
-│   └── tester.py                  # Evaluación de modelos
-├── main.py                        # Punto de entrada principal
-├── config.json                    # Configuración del sistema
-├── icd_dataset.csv                # Conjunto de datos de códigos CIE
-├── evolution_texts_resolved.csv   # Textos médicos de evolución
-└── README.md                      # Documentación
+│   ├── analyzer.py                # Main analysis logic
+│   ├── _custom_parser.py          # Diagnosis parser
+│   ├── _validator.py              # Results validation
+│   ├── auxiliary_functions.py     # Auxiliary functions
+│   ├── data_models.py             # Pydantic data models
+│   ├── results_manager.py         # Results management and visualization
+│   └── tester.py                  # Model evaluation
+├── main.py                        # Main entry point
+├── config.json                    # System configuration
+├── icd_dataset.csv                # ICD code dataset
+├── evolution_texts_resolved.csv   # Medical evolution texts
+└── README.md                      # Documentation
 ```
 
-## 📋 Formato de Datos
+## 📋 Data Format
 
-### Archivos de entrada
+### Input Files
 
-Los textos de evolución médica deben estar en formato CSV o JSON con los siguientes campos:
+Medical evolution texts must be in CSV or JSON format with the following fields:
 
-- `id`: Identificador único del registro
-- `evolution_text`: Texto médico de evolución
-- `principal_diagnostic`: Diagnóstico principal correcto (para evaluación)
+- `id`: Unique record identifier
+- `evolution_text`: Medical evolution text
+- `principal_diagnostic`: Correct principal diagnosis (for evaluation)
 
-### Configuración
+### Configuration
 
-El archivo `config.json` debe contener:
+The `config.json` file must contain:
 
-- `models`: Lista de modelos a evaluar
-- `prompts`: Lista de prompts para usar con los modelos
-- `optimal`: Configuración óptima (índices de modelo y prompt)
+- `models`: List of models to evaluate
+- `prompts`: List of prompts to use with models
+- `optimal_model`: Index of the optimal model
 
-## 📈 Resultados
+## 📈 Results
 
-Los resultados se almacenan en directorios según el modo de ejecución:
+Results are stored in directories based on the execution mode:
 
-- **Modo normal**: Archivos JSON en el directorio `results/`
-- **Modo prueba**: Archivos JSON en el directorio `testing_results/`
+- **Normal mode**: JSON files in the `results/` directory
+- **Test mode**: JSON files in the `testing_results/` directory with visualizations
 
-El formato de resultados incluye:
+The results format includes:
 
-- Información del modelo (nombre, tamaño, parámetros)
-- Métricas de rendimiento (precisión, errores, tiempo de procesamiento)
-- Detalles de cada diagnóstico procesado
+- Model information (name, size, parameters)
+- Performance metrics (accuracy, errors, processing time)
+- Details of each processed diagnosis
+- Performance comparison charts and visualizations

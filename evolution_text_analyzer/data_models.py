@@ -2,7 +2,6 @@
 Data models for the medical diagnostic analysis system.
 This module contains all the Pydantic models used throughout the system.
 """
-
 from typing import Dict, Optional
 from pydantic import BaseModel
 
@@ -43,7 +42,8 @@ class EvaluationResult(BaseModel):
     model_info: dict
     performance: PerformanceMetrics
     evaluated_texts: Dict[str, EvaluationOutput]
-    
+
+
 class ModelInfo(BaseModel):
     model_name: str
     installed: bool = False
