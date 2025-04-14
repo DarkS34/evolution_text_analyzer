@@ -1,11 +1,9 @@
-"""This is the example module.
-
-This module does stuff.
-"""
-
 import unicodedata
+import re
+from rapidfuzz import fuzz
 
-extendedDiagMap = {
+
+extendedDiagMap: dict[str, str] = {
     "Baker": "Quiste de Baker",
     "Behcet": "Enfermedad de Behçet",
     "ACG": "Arteritis de Células Gigantes",
@@ -37,16 +35,111 @@ extendedDiagMap = {
 }
 
 
+EXCLUSION_TERMS: list[str] = [
+    "con", "y", "de", "del", "la", "el", "en", "por", "sin", "a", "para",
+    "debido", "asociado", "secundario", "primario", "crónico", "agudo"
+]
+
+
+SIMILARITY_THRESHOLD: float = 80.0  
+
+
 def normalize_name(name: str) -> str:
-    newName = extendedDiagMap.get(name, name)
-    return "".join(c for c in unicodedata.normalize("NFKD", newName) if not unicodedata.combining(c)).lower()
+    """
+    Normaliza un nombre de diagnóstico para facilitar la comparación.
+    
+    Args:
+        name: Nombre del diagnóstico a normalizar
+        
+    Returns:
+        Nombre normalizado en minúsculas, sin acentos y expandido si es una abreviatura
+    """
+    if name is None:
+        return ""
+        
+    # Expandir abreviaturas conocidas
+    expanded_name = extendedDiagMap.get(name.strip(), name)
+    
+    # Normalizar: eliminar acentos, convertir a minúsculas
+    normalized = "".join(
+        c for c in unicodedata.normalize("NFKD", expanded_name) 
+        if not unicodedata.combining(c)
+    ).lower()
+    
+    # Eliminar puntuación y caracteres especiales
+    normalized = re.sub(r'[^\w\s]', ' ', normalized)
+    
+    # Eliminar espacios múltiples y espacios al inicio/fin
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    
+    return normalized
 
 
-def validate_result(modelName: str, processedDiag: str, correctDiag: str):
-    processedDiagNorm = normalize_name(processedDiag)
-    correctDiagNorm = normalize_name(correctDiag)
+def tokenize_diagnosis(diagnosis: str) -> list[str]:
+    """
+    Divide un diagnóstico en tokens significativos, eliminando palabras comunes.
+    
+    Args:
+        diagnosis: Diagnóstico normalizado
+        
+    Returns:
+        Lista de tokens significativos
+    """
+    tokens = diagnosis.split()
+    
+    # Eliminar términos de exclusión
+    return [token for token in tokens if token not in EXCLUSION_TERMS]
 
-    staticalCond = (processedDiagNorm == correctDiagNorm) or processedDiagNorm.find(
-        correctDiagNorm) != -1 or correctDiagNorm.find(processedDiagNorm) != -1
 
-    return staticalCond
+def get_key_terms(diagnosis: str) -> list[str]:
+
+    normalized = normalize_name(diagnosis)
+    
+    return tokenize_diagnosis(normalized)
+
+
+def calculate_similarity_scores(processed: str, correct: str) -> tuple[float, float, float]:
+    ratio = fuzz.ratio(processed, correct)
+    partial_ratio = fuzz.partial_ratio(processed, correct)
+    token_sort_ratio = fuzz.token_sort_ratio(processed, correct)
+    
+    return (ratio, partial_ratio, token_sort_ratio)
+
+
+def validate_result(processed_diag: str, correct_diag: str) -> bool:
+    
+    if processed_diag is None or correct_diag is None:
+        return False
+    
+    if isinstance(processed_diag, str) and processed_diag.strip() == "":
+        return False
+        
+    if isinstance(correct_diag, str) and correct_diag.strip() == "":
+        return False
+    
+    
+    processed_norm = normalize_name(processed_diag)
+    correct_norm = normalize_name(correct_diag)
+    
+    if processed_norm == correct_norm:
+        return True
+    
+    processed_terms = set(get_key_terms(processed_diag))
+    correct_terms = set(get_key_terms(correct_diag))
+
+    if len(correct_terms) > 0 and correct_terms.issubset(processed_terms):
+        return True
+    
+    ratio, partial_ratio, token_sort_ratio = calculate_similarity_scores(processed_norm, correct_norm)
+    
+    if max(ratio, token_sort_ratio) >= SIMILARITY_THRESHOLD:
+        return True
+        
+    if len(correct_norm) < 15 and partial_ratio >= 90:
+        return True
+    
+    if len(correct_norm) > 10 and len(processed_norm) > 10:
+        if (correct_norm in processed_norm) or (processed_norm in correct_norm):
+            return True
+    
+    return False

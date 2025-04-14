@@ -39,10 +39,6 @@ def _color_text(text, color="green"):
     }
     return f"{colors.get(color, '')}{text}\033[0m"
 
-# ------------------------
-# Connection & Argument Handling
-# ------------------------
-
 
 def check_ollama_connection(url: str = "http://localhost:11434") -> None:
     try:
@@ -68,8 +64,6 @@ def get_args(num_evolution_texts: int):
     parser.add_argument("-t", "--test", action="store_true", dest="test")
     parser.add_argument("-i", "--installed",
                         action="store_true", dest="only_installed_models")
-    parser.add_argument("-tp", "--test-prompts",
-                        action="store_true", dest="test_prompts")
     parser.add_argument("-v", "--verbose",
                         action="store_true", dest="verbose_mode")
     parser.add_argument("-E", "--expand", action="store_true",
@@ -78,11 +72,6 @@ def get_args(num_evolution_texts: int):
                         dest="normalization_mode", help="Normalize results via RAG")
 
     return parser.parse_args()
-
-
-# ------------------------
-# File and Config Handling
-# ------------------------
 
 
 def get_evolution_texts(path: Path):
@@ -106,7 +95,7 @@ def get_evolution_texts(path: Path):
     return texts
 
 
-def get_analyzer_configuration(path: Path) -> tuple[tuple[str, str], list[str], list[str]]:
+def get_analyzer_configuration(path: Path):
     if not path.exists():
         raise FileNotFoundError(f"File '{path}' not found")
     try:
@@ -151,7 +140,7 @@ def get_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomic-em
         print(
             f"{_color_text('[INFO]')} Embedding model '{model_name}' not installed. Downloading...", end="")
         ollama.pull(model_name)
-    
+
     if not index_dir.exists():
         _create_chroma_db(index_path, model_name)
 
@@ -160,10 +149,6 @@ def get_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomic-em
         persist_directory=str(index_dir),
         embedding_function=embeddings
     )
-
-# ------------------------
-# Model Handling
-# ------------------------
 
 
 def _process_model_info(raw_model: str, installed_models: list[dict]) -> ModelInfo:
@@ -272,7 +257,6 @@ def choose_model(models: list[str], installed_only: bool = False) -> list[dict] 
 
 
 def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> None:
-    # Limpieza de la línea actual en consola
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
     if verbose:
         for id, evaluated_text in results.evaluated_texts.items():
@@ -304,21 +288,8 @@ def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> N
         f"\tDuration: {performance.duration} s.", end="\n\n", flush=True)
 
 
-def update_results(results_path: Path, partial_result: dict, models_results: list) -> None:
-    models_results.append(partial_result)
-    models_results.sort(
-        key=lambda x: x.performance.accuracy, reverse=True)
-    write_results(results_path, models_results)
-
-
-def write_results(results_path: str, results: dict | BaseModel | list[BaseModel]) -> None:
+def write_results(results_path: str, results: dict) -> None:
     with open(results_path, mode="w", encoding="utf-8") as file:
-        if isinstance(results, list):
-            results = [result.model_dump(exclude_none=True)
-                       for result in results]
-        elif isinstance(results, BaseModel):
-            results = results.model_dump(exclude_none=True)
-
         json.dump(results, file, indent=3, ensure_ascii=False)
 
 
@@ -332,13 +303,13 @@ def print_execution_progression(
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
     if total_models == 1:
         print(
-            f"\r{_color_text('[PROCESSING]')} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
+            f"\r{_color_text('[TESTING]')} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
             end="",
             flush=True,
         )
     else:
         print(
-            f"\r{_color_text('[PROCESSING]')} Models processed {processed_models}/{total_models} | Currently {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
+            f"\r{_color_text('[TESTING]')} Models processed {processed_models}/{total_models} | Currently {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
             end="",
             flush=True,
         )

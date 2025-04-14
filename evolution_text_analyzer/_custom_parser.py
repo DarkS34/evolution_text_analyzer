@@ -8,7 +8,7 @@ from langchain_core.outputs import Generation
 from langchain_ollama.llms import OllamaLLM
 
 THRESHOLD: float = 0.90
-FW_RATION: int = 80
+FW_RATION: int = 90
 
 
 class DiagnosticNormalizerRAG:

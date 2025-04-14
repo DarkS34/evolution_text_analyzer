@@ -34,9 +34,9 @@ def evolution_text_analysis(
     diagnosis_prompt = PromptTemplate.from_template(
         prompts["diagnostic_prompt"])
 
-    # Parser
-    parser = CustomParser(chroma_db, model, prompts["parser_prompts"]["rag_prompt"]
-                          if chroma_db is not None else prompts["parser_prompts"]["icd_code_prompt"])
+    parser_prompt = prompts["parser_prompts"]["rag_prompt"] if chroma_db is not None else prompts["parser_prompts"]["icd_code_prompt"]
+
+    parser = CustomParser(chroma_db, model, parser_prompt)
 
     # Expansion chain
     expand_chain = expand_prompt | model | StrOutputParser()
@@ -62,7 +62,7 @@ def evolution_text_analysis(
                 "processing_error": str(e),
             }
 
-    processed_evolution_texts = {}
+    processed_evolution_texts = dict()
 
     # Process batches
     for start in range(0, total_evolution_texts_to_process, num_batches):

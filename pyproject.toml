@@ -13,4 +13,5 @@ dependencies = [
     "langchain-community>=0.3.21",
     "langchain-chroma>=0.2.2",
     "rapidfuzz>=3.13.0",
+    "matplotlib>=3.10.1",
 ]

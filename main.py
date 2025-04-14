@@ -1,3 +1,6 @@
+"""
+Main entry point for the medical diagnostic analysis system.
+"""
 from pathlib import Path
 
 from evolution_text_analyzer.analyzer import evolution_text_analysis
@@ -13,7 +16,19 @@ from evolution_text_analyzer.auxiliary_functions import (
 )
 from evolution_text_analyzer.tester import evaluate_analysis
 
-def run_test_analysis_mode(models: list[str], prompts: list[dict], opt_prompt: int, evolution_texts: list, chroma_db, args):
+
+def run_test_analysis_mode(models: list[str], prompts: list[dict], evolution_texts: list, chroma_db, args):
+    """
+    Run the system in test analysis mode, evaluating model performance.
+
+    Args:
+        models: List of model names to evaluate
+        prompts: List of prompts to use
+        opt_prompt: Index of the optimal prompt
+        evolution_texts: List of medical texts to analyze
+        chroma_db: Chroma database for normalization
+        args: Command line arguments
+    """
     testing_results_dir = config_file.parent / "testing_results"
     testing_results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -25,8 +40,7 @@ def run_test_analysis_mode(models: list[str], prompts: list[dict], opt_prompt: i
 
     evaluate_analysis(
         selected_models,
-        (args.test_prompts, prompts),
-        opt_prompt,
+        prompts,
         evolution_texts,
         testing_results_dir,
         chroma_db,
@@ -36,7 +50,18 @@ def run_test_analysis_mode(models: list[str], prompts: list[dict], opt_prompt: i
         args.verbose_mode,
     )
 
-def run_analysis_mode(model: str, prompts: str, evolution_texts: list, chroma_db, args):
+
+def run_analysis_mode(model: str, prompts: dict, evolution_texts: list, chroma_db, args):
+    """
+    Run the system in production analysis mode with a single model.
+
+    Args:
+        model: Name of the model to use
+        prompts: Dictionary of prompts to use
+        evolution_texts: List of medical texts to analyze
+        chroma_db: Chroma database for normalization
+        args: Command line arguments
+    """
     results_dir = config_file.parent / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -52,7 +77,9 @@ def run_analysis_mode(model: str, prompts: str, evolution_texts: list, chroma_db
 
     write_results(results_dir / "processed_evolution_texts.json", results)
 
+
 if __name__ == "__main__":
+
     check_ollama_connection()
 
     base_path = Path(__file__).parent
@@ -61,7 +88,7 @@ if __name__ == "__main__":
 
     config = get_analyzer_configuration(config_file)
 
-    opt, models, prompts = config["optimal"], config["models"], config["prompts"]
+    opt_model, models, prompts = config["optimal_model"], config["models"], config["prompts"]
 
     evolution_texts = get_evolution_texts(evolution_texts_file)
     args = get_args(len(evolution_texts))
@@ -70,7 +97,7 @@ if __name__ == "__main__":
 
     if args.test or args.test_prompts:
         run_test_analysis_mode(
-            models, prompts, opt["prompt"], evolution_texts, chroma_db, args)
+            models, prompts, evolution_texts, chroma_db, args)
     else:
         run_analysis_mode(
-            models[opt[0]], prompts[opt[1]], evolution_texts, chroma_db, args)
+            models[opt_model], prompts, evolution_texts, chroma_db, args)
