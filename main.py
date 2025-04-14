@@ -86,7 +86,7 @@ if __name__ == "__main__":
     check_ollama_connection()
 
     base_path = Path(__file__).parent
-    evolution_texts_file = base_path / "evolution_texts_resolved.csv"
+    evolution_texts_file = base_path / "evolution_texts_resolved_simple.csv"
     config_file = base_path / "config.json"
 
     config = get_analyzer_configuration(config_file)

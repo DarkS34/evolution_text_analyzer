@@ -13,9 +13,9 @@ from langchain_core.outputs import Generation
 from langchain_ollama.llms import OllamaLLM
 
 # Threshold for similarity in RAG-based normalization
-THRESHOLD: float = 0.90
+THRESHOLD: float = 0.9
 # Minimum fuzzy ratio for accepting a match
-FW_RATION: int = 90
+FW_RATIO: int = 75
 
 
 class DiagnosticNormalizerRAG:
@@ -110,7 +110,7 @@ class DiagnosticNormalizerRAG:
         for item in similar_diagnostics:
             score = fuzz.ratio(result.lower(), item[0].metadata.get(
                 'principal_diagnostic', '').lower())
-            if score > FW_RATION and score > best_score:
+            if score > FW_RATIO and score > best_score:
                 best_score = score
                 best_match = item
 
