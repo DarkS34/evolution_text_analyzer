@@ -1,10 +1,8 @@
 # Medical Evolution Text Analyzer
 
-![Python](https://img.shields.io/badge/Python-3.9%2B-brightgreen)
-
 An advanced system for analyzing medical evolution texts that extracts principal diagnoses and ICD codes using language models.
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Features](#features)
@@ -18,13 +16,12 @@ An advanced system for analyzing medical evolution texts that extracts principal
 - [Directory Structure](#directory-structure)
 - [Data Format](#data-format)
 - [Results](#results)
-- [License](#license)
 
-## 🔍 Overview
+## Overview
 
 The **Medical Evolution Text Analyzer** is a Python-based system designed to process medical evolution texts, extract principal diagnoses and ICD codes (International Classification of Diseases), and validate these diagnoses against reference data. It uses language models through the Ollama framework to perform advanced semantic analysis of medical texts, with a special focus on rheumatological diseases.
 
-## ✨ Features
+## Features
 
 - **Automatic diagnosis extraction** from clinical notes
 - **Diagnosis normalization** using RAG (Retrieval Augmented Generation)
@@ -34,13 +31,13 @@ The **Medical Evolution Text Analyzer** is a Python-based system designed to pro
 - **Text expansion** option to improve information extraction
 - **Flexible and powerful command line interface**
 
-## 📋 Requirements
+## Requirements
 
-- Python 3.9+
+- Python 3.10
 - [Ollama](https://ollama.ai/) installed and running
-- UV package manager (optional, but recommended)
+- UV package manager
 
-## 💻 Installation
+## Installation
 
 1. Clone the repository:
    ```bash
@@ -94,7 +91,7 @@ python main.py -tiv -m2
 python main.py -tiEN -m2
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 The system is structured into several main modules:
 
@@ -106,7 +103,7 @@ The system is structured into several main modules:
 6. **data_models.py**: Contains Pydantic models for data structures
 7. **results_manager.py**: Manages storage and visualization of results
 
-## 📊 Processing Flow
+## Processing Flow
 
 1. **Initialization**:
    - Verification of connection with Ollama
@@ -131,7 +128,7 @@ The system is structured into several main modules:
    - Detailed performance metrics are provided
    - Visualizations are generated for model comparison
 
-## 📁 Directory Structure
+## Directory Structure
 
 ```
 .
@@ -151,7 +148,7 @@ The system is structured into several main modules:
 └── README.md                      # Documentation
 ```
 
-## 📋 Data Format
+## Data Format
 
 ### Input Files
 
@@ -169,7 +166,7 @@ The `config.json` file must contain:
 - `prompts`: List of prompts to use with models
 - `optimal_model`: Index of the optimal model
 
-## 📈 Results
+## Results
 
 Results are stored in directories based on the execution mode:
 
