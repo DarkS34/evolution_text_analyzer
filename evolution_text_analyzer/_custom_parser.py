@@ -224,7 +224,7 @@ class CustomParser(BaseOutputParser):
             else:
                 principal_diagnostic = str(result).strip()
 
-            # Use RAG system if available, otherwise generate ICD code directly
+            # Use RAG system if selected, otherwise generate ICD code directly
             if self._rag_system is None:
                 generated = self.generate_icd_code(principal_diagnostic)
                 parsed = generated
@@ -240,5 +240,4 @@ class CustomParser(BaseOutputParser):
 
             return parsed
         except Exception as e:
-            raise Exception(
-                f"Error al intentar parsear el resultado: {e}")
+            raise ValueError(f"An error ocurred while trying to parse the result: {e}")

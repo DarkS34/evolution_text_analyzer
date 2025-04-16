@@ -2,15 +2,17 @@
 Enhanced results management module for medical diagnostic analysis.
 Provides improved result handling for multi-model evaluations.
 """
+from evolution_text_analyzer.auxiliary_functions import color_text
+from .data_models import EvaluationResult
+import matplotlib.pyplot as plt
 import json
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
-
+import os
 import pandas as pd
-import matplotlib.pyplot as plt
-
-from .data_models import EvaluationResult
+import matplotlib
+matplotlib.use('Agg')
 
 
 class ResultsManager:
@@ -22,6 +24,7 @@ class ResultsManager:
 
         Args:
             base_results_dir: Base directory for storing results
+            single_model_mode: Whether the system is running in single model mode
         """
         self.base_dir = base_results_dir
         self.single_model_mode = single_model_mode
@@ -49,7 +52,7 @@ class ResultsManager:
         self.detailed_results.append(result)
 
         # Extract summary info
-        model_name = result.model_info.get("model_name", "Unknown")
+        model_name = result.model_info.model_name
         accuracy = result.performance.accuracy
         incorrect = result.performance.incorrect_outputs
         errors = result.performance.errors
@@ -86,8 +89,8 @@ class ResultsManager:
             result: The evaluation result to write
         """
 
-        model_name = result.model_info.get(
-            "model_name", "unknown").replace(":", "-").replace("_", "-").replace(".", "")
+        model_name = result.model_info.model_name.replace(
+            ":", "-").replace("_", "-").replace(".", "")
         normalized_tag = "_N" if result.performance.normalized else ""
         expanded_tag = "_E" if result.performance.expanded else ""
 
@@ -115,13 +118,11 @@ class ResultsManager:
         with open(summary_path, "w", encoding="utf-8") as f:
             json.dump(sorted_summary, f, indent=2, ensure_ascii=False)
 
-        # Create CSV for easier analysis
-        df = pd.DataFrame(sorted_summary)
-        csv_path = self.results_dir / "summary.csv"
-        df.to_csv(csv_path, index=False)
-
-        # Generate visualizations
-        self._generate_visualizations(df)
+        # Only generate visualizations when we have at least one result
+        if self.summary_data:
+            df = pd.DataFrame(sorted_summary)
+            # Generate visualizations
+            self._generate_visualizations(df)
 
     def _generate_visualizations(self, df: pd.DataFrame) -> None:
         """
@@ -166,7 +167,7 @@ class ResultsManager:
         plt.savefig(viz_dir / "performance_comparison.png", dpi=300)
         plt.close()
 
-        if not self.single_model_mode:
+        if not self.single_model_mode and len(df) > 1:
             plt.figure(figsize=(12, 6))
 
             df_time_sorted = df.sort_values("duration")
@@ -196,7 +197,7 @@ class ResultsManager:
             self.summary_data, key=lambda x: x["accuracy"], reverse=True)
         return sorted_models[0]
 
-    def generate_comprehensive_report(self) -> str:
+    def generate_comprehensive_report(self) -> None:
         """
         Generate a comprehensive text report of the evaluation results.
 
@@ -237,5 +238,6 @@ class ResultsManager:
                         f"{model['model_name']:<30} {model['accuracy']:<10.2f} {model['incorrect_outputs']:<10.2f} {model['errors']:<10.2f} {model['duration']:<10.2f}\n")
             else:
                 f.write("No models evaluated.\n")
-
-        return str(report_path)
+                
+        print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
+        print(f"\r{color_text('COMPLETED')} Processing finished")

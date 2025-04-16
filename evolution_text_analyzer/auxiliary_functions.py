@@ -1,8 +1,15 @@
 """
-Module containing auxiliary functions for the medical diagnostic analysis system.
-This module provides helper functions for various aspects of the system including
-model management, data loading, configuration, and visualization.
+Auxiliary functions module for the medical diagnostic analysis system.
+
+This module provides utility functions for various system components including:
+- Configuration loading and validation
+- Command-line argument parsing
+- File I/O operations
+- Model management and selection
+- Progress reporting and visualization
+- Vector database operations
 """
+
 import json
 import os
 from argparse import ArgumentParser
@@ -20,13 +27,13 @@ from .data_models import ModelInfo
 EMBEDDINGS_MODEL = "nomic-embed-text:latest"
 
 
-def _color_text(text, color="green"):
+def color_text(text, color="green"):
     """
     Format text with ANSI color codes for terminal output.
 
     Args:
         text: The text to be colored
-        color: Color name to use (red, green, bold, cyan)
+        color: Color name (red, green, cyan)
 
     Returns:
         String formatted with ANSI color codes
@@ -43,50 +50,179 @@ def check_ollama_connection(url: str = "http://localhost:11434") -> None:
     """
     Verify that Ollama server is running and accessible.
 
+    Attempts to connect to the Ollama API endpoint and exits the application
+    with an error message if the connection fails.
+
     Args:
         url: URL of the Ollama server to check
 
-    Returns:
-        None, exits with error code 1 if connection fails
+    Raises:
+        SystemExit: If connection to Ollama server fails
     """
     try:
         if not requests.get(url).status_code == 200:
             print(
-                f"{_color_text('ERROR', 'red')} An error ocurred. Imposible to connect to Ollama.\n")
+                f"{color_text('ERROR', 'red')} An error occurred. Unable to connect to Ollama.\n"
+            )
             exit(1)
     except requests.ConnectionError:
-        print(
-            f"{_color_text('ERROR', 'red')} Ollama is not running.")
+        print(f"{color_text('ERROR', 'red')} Ollama is not running.")
         exit(1)
 
 
-def get_args(num_evolution_texts: int):
+def get_analyzer_configuration(path: Path):
+    """
+    Load and validate analyzer configuration from JSON file.
+
+    Reads the configuration file and verifies that all required fields
+    and prompts are present with appropriate values.
+
+    Args:
+        path: Path to the configuration file
+
+    Returns:
+        Dictionary containing validated analyzer configuration
+
+    Raises:
+        FileNotFoundError: If the file doesn't exist
+        ValueError: If JSON format is invalid or required fields are missing
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"File '{path}' not found")
+
+    try:
+        config = pd.read_json(path, typ="series").to_dict()
+    except ValueError:
+        raise ValueError(f"Invalid JSON format in file '{path}'")
+
+    # Verify required fields
+    required_fields = ["optimal_model", "models", "prompts"]
+    missing_fields = [
+        field for field in required_fields if field not in config]
+    if missing_fields:
+        raise ValueError(
+            f"Missing required fields in configuration: {', '.join(missing_fields)}"
+        )
+
+    if not config["models"] or len(config["models"]) == 0:
+        raise ValueError("The 'models' array cannot be empty")
+
+    if not isinstance(config["prompts"], dict):
+        raise ValueError("The 'prompts' field must be a dictionary")
+
+    required_prompts = [
+        "expand_diagnostic_prompt",
+        "diagnostic_prompt",
+        "parser_prompts",
+    ]
+    missing_prompts = [
+        prompt for prompt in required_prompts if prompt not in config["prompts"]
+    ]
+    if missing_prompts:
+        raise ValueError(
+            f"Missing required prompts: {', '.join(missing_prompts)}")
+
+    if not isinstance(config["prompts"]["parser_prompts"], dict):
+        raise ValueError("The 'parser_prompts' field must be a dictionary")
+
+    required_parser_prompts = ["rag_prompt", "icd_code_prompt"]
+    missing_parser_prompts = [
+        prompt
+        for prompt in required_parser_prompts
+        if prompt not in config["prompts"]["parser_prompts"]
+    ]
+    if missing_parser_prompts:
+        raise ValueError(
+            f"Missing required parser prompts: {', '.join(missing_parser_prompts)}"
+        )
+
+    if not isinstance(config["optimal_model"], int) or not config[
+        "optimal_model"
+    ] == int(config["optimal_model"]):
+        raise ValueError("The 'optimal_model' must be an integer")
+
+    optimal_model_index = int(config["optimal_model"])
+    if optimal_model_index < 0 or optimal_model_index >= len(config["models"]):
+        raise ValueError(
+            f"The 'optimal_model' index ({optimal_model_index}) is out of range for the models array (0-{len(config['models']) - 1})"
+        )
+
+    return config
+
+
+def get_args():
     """
     Parse command line arguments for the application.
 
-    Args:
-        num_evolution_texts: Total number of evolution texts available
+    Defines and processes all command line options for controlling the system's
+    behavior, including operation mode, batch size, and processing flags.
 
     Returns:
-        Parsed command line arguments
+        Parsed command line arguments object
     """
     parser = ArgumentParser(
-        description="Script for processing with labeled modes.", allow_abbrev=False)
-    parser.add_argument("-m", "--mode", type=int,
-                        choices=[1, 2], default=1, help="Operation mode (1 or 2)")
-    parser.add_argument("-b", "--batches", type=int,
-                        default=1, dest="num_batches")
-    parser.add_argument("-n", "--num-texts", type=int,
-                        default=num_evolution_texts, dest="num_evolution_texts")
-    parser.add_argument("-t", "--test", action="store_true", dest="test")
-    parser.add_argument("-i", "--installed",
-                        action="store_true", dest="only_installed_models")
-    parser.add_argument("-v", "--verbose",
-                        action="store_true", dest="verbose_mode")
-    parser.add_argument("-E", "--expand", action="store_true",
-                        dest="expansion_mode", help="Expand evolution texts")
-    parser.add_argument("-N", "--normalize", action="store_true",
-                        dest="normalization_mode", help="Normalize results via RAG")
+        description="Medical evolution text analyzer with multiple operation modes.",
+        allow_abbrev=False
+    )
+    parser.add_argument(
+        "-f", "--filename",
+        type=str,
+        default="evolution_texts.csv",
+        dest="et_filename",
+        help="Filename for the evolution texts file"
+    )
+    parser.add_argument(
+        "-m", "--mode",
+        type=int,
+        choices=[1, 2],
+        default=1,
+        dest="eval_mode",
+        help="Operation mode: 1 for all models, 2 for model selection"
+    )
+    parser.add_argument(
+        "-b", "--batches",
+        type=int,
+        default=1,
+        dest="num_batches",
+        help="Number of batches for parallel processing"
+    )
+    parser.add_argument(
+        "-n", "--num-texts",
+        type=int,
+        default=None,
+        dest="num_texts",
+        help="Number of texts to process"
+    )
+    parser.add_argument(
+        "-t", "--test",
+        action="store_true",
+        dest="test_mode",
+        help="Run in test mode to evaluate model performance"
+    )
+    parser.add_argument(
+        "-i", "--installed",
+        action="store_true",
+        dest="only_installed_models_mode",
+        help="Only use models that are already installed"
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        dest="verbose_mode",
+        help="Print detailed output during processing"
+    )
+    parser.add_argument(
+        "-E", "--expand",
+        action="store_true",
+        dest="expansion_mode",
+        help="Expand evolution texts before processing"
+    )
+    parser.add_argument(
+        "-N", "--normalize",
+        action="store_true",
+        dest="normalization_mode",
+        help="Normalize results using RAG"
+    )
 
     return parser.parse_args()
 
@@ -95,15 +231,18 @@ def get_evolution_texts(path: Path):
     """
     Load evolution texts from CSV or JSON file.
 
+    Reads medical evolution texts from a file and prepares them for processing,
+    performing basic validation on the required fields.
+
     Args:
         path: Path to the file containing evolution texts
 
     Returns:
-        List of dictionaries containing evolution texts
+        List of dictionaries containing validated evolution texts
 
     Raises:
         FileNotFoundError: If the file doesn't exist
-        ValueError: If the file format is not supported
+        ValueError: If file format is unsupported or required fields are missing
     """
     if not path.exists():
         raise FileNotFoundError(f"File '{path}' not found")
@@ -116,55 +255,55 @@ def get_evolution_texts(path: Path):
         elif ext == ".json":
             texts = pd.read_json(file)
         else:
-            raise ValueError("Extension not supported. Must be .json or .csv")
+            print(
+                f"{color_text('ERROR', 'red')} Extension not supported. Must be .json or .csv"
+            )
+            exit(1)
 
-    for evolution_text in texts:
+    required_fields = ["id", "evolution_text"]
+    for i, evolution_text in enumerate(texts):
+        missing_fields = [
+            field for field in required_fields if field not in evolution_text
+        ]
+        if missing_fields:
+            raise ValueError(
+                f"Missing required fields {missing_fields} in record {i}")
+
         evolution_text["evolution_text"] = evolution_text["evolution_text"].replace(
-            "\n", " ")
+            "\n", " "
+        )
 
     return texts
 
 
-def get_analyzer_configuration(path: Path):
-    """
-    Load analyzer configuration from JSON file.
-
-    Args:
-        path: Path to the configuration file
-
-    Returns:
-        Dictionary containing analyzer configuration
-
-    Raises:
-        FileNotFoundError: If the file doesn't exist
-        ValueError: If the JSON format is invalid
-    """
-    if not path.exists():
-        raise FileNotFoundError(f"File '{path}' not found")
-    try:
-        return pd.read_json(path, typ="series").to_dict()
-    except ValueError:
-        raise ValueError(f"Invalid JSON format in file '{path}'")
-
-
-def _create_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomic-embed-text:latest") -> bool:
+def _create_chroma_db(
+    index_path: str = "icd_vector_db", model_name: str = "nomic-embed-text:latest"
+) -> bool:
     """
     Create a new Chroma vector database for ICD data.
+
+    Builds and initializes a vector database for medical diagnosis normalization
+    using embeddings from the specified model.
 
     Args:
         index_path: Directory path where the database will be stored
         model_name: Name of the embedding model to use
 
     Returns:
-        Chroma database object if successful, False otherwise
+        Chroma database object if successful
+
+    Raises:
+        ValueError: If database creation fails
     """
     index_dir = Path(index_path)
     csv_path: str = "icd_dataset.csv"
 
     print(
-        f"\r{_color_text('INFO')} Chroma database not found. Creating new one from {csv_path}...", end="")
+        f"\r{color_text('INFO')} Chroma database not found. Creating new one from {csv_path}...",
+        end="",
+    )
 
-    df = pd.read_csv(csv_path, quotechar="\"")
+    df = pd.read_csv(csv_path, quotechar='"')
     df["text"] = df["principal_diagnostic"] + ":" + df["icd_code"]
     texts = df["text"].tolist()
     metadatas = df[["principal_diagnostic", "icd_code"]
@@ -176,160 +315,227 @@ def _create_chroma_db(index_path: str = "icd_vector_db", model_name: str = "nomi
             texts=texts,
             embedding=embeddings,
             metadatas=metadatas,
-            persist_directory=str(index_dir)
+            persist_directory=str(index_dir),
         )
 
         return chroma_db
     except Exception as e:
-        print(
-            f"\n{_color_text('ERROR', 'red')} Failed to create Chroma DB: {e}")
-        return False
+        raise ValueError("Failed to create Chroma DB: ", e)
+
+
+def get_installed_models(with_info: bool = False):
+    """
+    Get list of models installed in Ollama.
+
+    Retrieves either model names or full model information from
+    the local Ollama installation.
+
+    Args:
+        with_info: If True, return full model information, otherwise just names
+
+    Returns:
+        List of model names or model information dictionaries
+
+    Raises:
+        SystemExit: If Ollama API request fails
+    """
+    try:
+        if with_info:
+            installed_models = [
+                installed_model_info for installed_model_info in ollama.list()["models"]
+            ]
+        else:
+            installed_models = [
+                installed_model_info["model"]
+                for installed_model_info in ollama.list()["models"]
+            ]
+
+        return installed_models
+    except Exception as e:
+        print(color_text("ERROR", "red"), e)
+        exit(1)
+
+
+def model_installed(model_name: str) -> bool:
+    """
+    Check if a model is installed and download it if not.
+
+    Verifies if the specified model is available locally in Ollama,
+    and attempts to download it if not present.
+
+    Args:
+        model_name: Name of the model to check
+
+    Returns:
+        True if model is installed or successfully downloaded, False otherwise
+    """
+    if model_name in get_installed_models():
+        return True
+    else:
+        return _download_model(model_name)
 
 
 def get_chroma_db(index_path: str = "icd_vector_db") -> Chroma:
     """
     Get Chroma vector database for ICD data, creating it if it doesn't exist.
 
+    Provides access to the vector database used for diagnosis normalization,
+    initializing a new database if one doesn't exist at the specified path.
+
     Args:
         index_path: Directory path where the database is stored
 
     Returns:
-        Chroma database object
+        Chroma database object, or None if creation fails
     """
     index_dir = Path(index_path)
-
-    if not get_listed_models([EMBEDDINGS_MODEL], True)[0]["installed"]:
-        print(
-            f"{_color_text('DOWNLOADING', 'cyan')} '{EMBEDDINGS_MODEL}' ", end="")
-        ollama.pull(EMBEDDINGS_MODEL)
-
-    if not index_dir.exists():
-        _create_chroma_db(index_path, EMBEDDINGS_MODEL)
-
-    embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
-    return Chroma(
-        persist_directory=str(index_dir),
-        embedding_function=embeddings
-    )
+    try:
+        if model_installed(EMBEDDINGS_MODEL):
+            if not index_dir.exists():
+                chromadb = _create_chroma_db(index_path, EMBEDDINGS_MODEL)
+            else:
+                embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
+                chromadb = Chroma(persist_directory=str(
+                    index_dir), embedding_function=embeddings)
+            return chromadb
+    except Exception as e:
+        print(f"{color_text('ERROR', 'red')}", e)
 
 
-def _process_model_info(raw_model: str, installed_models: list[dict]) -> ModelInfo:
+def _get_model_info(model_name: str) -> ModelInfo:
     """
-    Process raw model information into a structured ModelInfo object.
+    Get detailed information about a specific model.
+
+    Retrieves and formats information about an Ollama model including
+    its size, parameters, and quantization level.
 
     Args:
-        raw_model: Name of the model
-        installed_models: List of installed models from Ollama
+        model_name: Name of the model to get information for
 
     Returns:
-        ModelInfo object containing model details
+        ModelInfo object with model details
     """
-    installed = next(
-        (model for model in installed_models if model["model"] == raw_model), None)
+    installed_model_info = next(
+        (
+            installed_model_name
+            for installed_model_name in get_installed_models(True)
+            if installed_model_name["model"] == model_name
+        ),
+        None,
+    )
+
     size, parameter_size, quant_level = None, None, None
 
-    if installed:
-        size = f"{round(ByteSize(installed.get('size', 0)).to('GB'), 1)} GB" if "size" in installed else None
-        details = installed.get("details", {})
+    if installed_model_info:
+        size = (
+            f"{round(ByteSize(installed_model_info.get('size', 0)).to('GB'), 1)} GB"
+            if "size" in installed_model_info
+            else None
+        )
+        details = installed_model_info.get("details", {})
         parameter_size = details.get("parameter_size")
         quant_level = details.get("quantization_level")
 
     return ModelInfo(
-        model_name=raw_model,
-        installed=bool(installed),
+        model_name=model_name,
+        installed=bool(installed_model_info),
         size=size,
         parameter_size=parameter_size,
-        quantization_level=quant_level
+        quantization_level=quant_level,
     )
 
 
-def get_listed_models(raw_models: list[str], installed_only: bool = False) -> list[dict]:
+def get_listed_models_info(
+    listed_model_names: list[str], installed_only: bool = False
+) -> list[dict]:
     """
-    Get information about specified models, optionally filtering for installed ones.
+    Get information about multiple models from a list.
+
+    Retrieves detailed information about multiple models, optionally
+    filtering to only include models that are already installed.
 
     Args:
-        raw_models: List of model names to get information for
-        installed_only: If True, return only installed models
+        listed_model_names: List of model names to get information for
+        installed_only: If True, only return information for installed models
 
     Returns:
-        List of dictionaries containing model information
+        List of ModelInfo objects with model details
 
     Raises:
-        ValueError: If the raw_models list is empty
+        SystemExit: If no models are found in the list
     """
-    if not raw_models:
-        raise ValueError("No models found in the list")
+    if not listed_model_names:
+        print(f"{color_text('ERROR', 'red')} No models found in config list")
+        exit(1)
 
-    installed = ollama.list()["models"]
-    models = [_process_model_info(
-        model, installed).__dict__ for model in raw_models]
-    return [model for model in models if model["installed"]] if installed_only else models
+    models = [
+        _get_model_info(listed_model_name) for listed_model_name in listed_model_names
+    ]
+
+    return (
+        [model for model in models if model.installed] if installed_only else models
+    )
 
 
-def download_model(model: dict) -> bool:
+def _download_model(model_name: str) -> bool:
     """
-    Download a model using Ollama.
+    Download a model from Ollama's model repository.
+
+    Pulls the specified model from Ollama with a progress indicator,
+    handling errors if the download fails.
 
     Args:
-        model: Dictionary containing model information
+        model_name: Name of the model to download
 
     Returns:
-        True if download was successful, False otherwise
+        True if download successful, False otherwise
     """
     try:
-        print(
-            f"\r{_color_text('DOWNLOADING', 'cyan')} '{model['model_name']}'", end="")
-        ollama.pull(model["model_name"])
-        updated = next((ollama_model for ollama_model in ollama.list()[
-                       "models"] if ollama_model["model"] == model["model_name"]), None)
-        if updated:
-            model.update({
-                "size": f"{round(ByteSize(updated['size']).to('GB'), 1)} GB",
-                "parameter_size": updated["details"]["parameter_size"],
-                "quantization_level": updated["details"]["quantization_level"]
-            })
-            model.pop("installed", None)
-            return True
-        return False
+        download_progress = ollama.pull(model_name, stream=True)
+        total = 0
+        completed = 0
+        for partial_progress in download_progress:
+            if 'total' in partial_progress:
+                total = partial_progress.get('total', 0)
+            if 'completed' in partial_progress:
+                completed = partial_progress.get('completed', 0)
+
+            if total > 0 and completed <= total:
+                progress = (completed / total) * 100
+
+                print(
+                    f"\r{color_text('DOWNLOADING', 'cyan')} {model_name} {progress:.1f}%",
+                    flush=True,
+                    end=""
+                )
+
+        return True
     except (ollama.ResponseError, requests.RequestException) as e:
-        print(f"\n{_color_text('ERROR')}Download failed: {e}")
+        print(f"\n{color_text('ERROR', 'red')} Download failed: {e}")
         return False
 
 
-def check_model(model: dict) -> bool:
+def _display_models_table(models: list[ModelInfo]) -> None:
     """
-    Check if a model is installed, downloading it if necessary.
+    Display a formatted table of model information.
+
+    Creates a nicely formatted table showing model details including
+    availability status, size, parameters, and quantization level.
 
     Args:
-        model: Dictionary containing model information
-
-    Returns:
-        True if the model is available (installed or successfully downloaded), False otherwise
-    """
-    if not model.get("installed", False):
-        return download_model(model)
-    model.pop("installed", None)
-    return True
-
-
-def display_model_table(models: list[dict]) -> None:
-    """
-    Display a formatted table of models in the terminal.
-
-    Args:
-        models: List of dictionaries containing model information
+        models: List of ModelInfo objects to display
     """
     col_widths = {
-        "name": max(len(model["model_name"]) for model in models) + 4,
+        "name": max(len(model.model_name) for model in models) + 4,
         "available": len("Not installed") + 4,
-        "details": 15
+        "details": 15,
     }
 
     header = (
         f"\r{'ID'.rjust(4)}  "
         f"{'NAME'.ljust(col_widths['name'])}"
         f"{'AVAILABLE'.ljust(col_widths['available'])}"
-        f"{'SIZE'.ljust(col_widths['details']-5)}"
+        f"{'SIZE'.ljust(col_widths['details'] - 5)}"
         f"{'PARAMETERS'.ljust(col_widths['details'])}"
         f"{'QUANTIZATION'.ljust(col_widths['details'])}"
     )
@@ -337,51 +543,62 @@ def display_model_table(models: list[dict]) -> None:
 
     for i, model in enumerate(models, 1):
         details = (
-            "Installed".ljust(col_widths["available"]) +
-            f"{model['size'] or ''}".ljust(col_widths["details"] - 5) +
-            f"{model['parameter_size'] or ''}".ljust(col_widths["details"]) +
-            f"{model['quantization_level'] or ''}".ljust(col_widths["details"])
-        ) if model["installed"] else "Not installed"
+            (
+                "Installed".ljust(col_widths["available"])
+                + f"{model.size or ''}".ljust(col_widths["details"] - 5)
+                + f"{model.parameter_size or ''}".ljust(col_widths["details"])
+                + f"{model.quantization_level or ''}".ljust(col_widths["details"])
+            )
+            if model.installed
+            else "Not installed"
+        )
 
         print(
-            f"{str(i).rjust(4)}. {model['model_name'].ljust(col_widths['name'])}{details}")
+            f"{str(i).rjust(4)}. {model.model_name.ljust(col_widths['name'])}{details}"
+        )
 
 
-def choose_model(models: list[str], installed_only: bool = False) -> list[dict] | None:
+def choose_model(model_names: list[str], installed_only: bool = False) -> list[str] | None:
     """
-    Display a list of models and prompt the user to choose one.
+    Display available models and let the user choose one.
+
+    Presents a list of models with details and prompts the user to select one,
+    handling the download process if necessary.
 
     Args:
-        models: List of model names
-        installed_only: If True, only show installed models
+        model_names: List of model names to choose from
+        installed_only: If True, only show models that are already installed
 
     Returns:
-        List containing a single dictionary with the chosen model information, or None if selection failed
+        List containing the selected ModelInfo object, or None if selection fails
 
     Raises:
         SystemExit: If no models are available to choose from
     """
-    listed = get_listed_models(models, installed_only)
+    listed = get_listed_models_info(model_names, installed_only)
     if not listed:
-        print(
-            f"{_color_text('ERROR', 'red')} No models available to choose from.")
+        print(f"{color_text('ERROR', 'red')} No models available to choose from.")
         exit(1)
 
-    display_model_table(listed)
+    _display_models_table(listed)
     while True:
         choice = input(f"\nSelect model (1 - {len(listed)}): ").strip()
 
         if choice.isnumeric() and 1 <= int(choice) <= len(listed):
-            selected = listed[int(choice) - 1]
-            return [selected] if check_model(selected) else None
+            selected_model = listed[int(choice) - 1]
+            if model_installed(selected_model.model_name):
+                return selected_model
 
         print(
-            f"{_color_text('[ERROR]', 'red')} Invalid selection. Please try again.")
+            f"{color_text('ERROR', 'red')} Invalid selection. Please try again.")
 
 
 def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> None:
     """
     Print evaluation results for a model.
+
+    Displays model performance metrics and optionally detailed results
+    for individual texts if verbose mode is enabled.
 
     Args:
         model: Dictionary containing model information
@@ -392,17 +609,20 @@ def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> N
     if verbose:
         for id, evaluated_text in results.evaluated_texts.items():
             print(
-                f"\n{id} - {_color_text(evaluated_text.valid, 'green' if evaluated_text.valid else 'red')}\n"
-                f"\tModel dignostic: {evaluated_text.processed_output.principal_diagnostic} (Code - {evaluated_text.processed_output.icd_code})\n"
+                f"\n{id} - {color_text(evaluated_text.valid, 'green' if evaluated_text.valid else 'red')}\n"
+                f"\tModel diagnostic: {evaluated_text.processed_output.principal_diagnostic} (Code - {evaluated_text.processed_output.icd_code})\n"
                 f"\tCorrect diagnostic: {evaluated_text.correct_diagnostic}"
             )
             if evaluated_text.processed_output.processing_error:
                 print(
-                    f"\tProcessing Error: {evaluated_text.processed_output.processing_error}")
+                    f"\tProcessing Error: {evaluated_text.processed_output.processing_error}"
+                )
             if evaluated_text.processed_output.validation_error:
                 print(
-                    f"\tValidation Error: {evaluated_text.processed_output.validation_error}")
-        print()
+                    f"\tValidation Error: {evaluated_text.processed_output.validation_error}"
+                )
+    print()
+
     performance = results.performance
     accuracy = performance.accuracy
     incorrect = performance.incorrect_outputs
@@ -410,18 +630,24 @@ def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> N
     total = performance.total_texts
 
     print(
-        f"\rModel: {model['model_name']}\n"
+        f"\rModel: {model.model_name}\n"
         f"Performance:\n"
-        f"\t{_color_text('Accuracy')}: {accuracy}% ({int((accuracy / 100) * total)}/{total})\n"
-        f"\t{_color_text('Incorrect outputs', 'red')}: {incorrect}% ({int((incorrect / 100) * total)}/{total})\n"
+        f"\t{color_text('Accuracy')}: {accuracy}% ({int((accuracy / 100) * total)}/{total})\n"
+        f"\t{color_text('Incorrect outputs', 'red')}: {incorrect}% ({int((incorrect / 100) * total)}/{total})\n"
         f"\tErrors: {errors}% ({int((errors / 100) * total)}/{total})\n\n"
         f"\tTotal records processed: {total}\n"
-        f"\tDuration: {performance.duration} s.", end="\n\n", flush=True)
+        f"\tDuration: {performance.duration} s.",
+        end="\n",
+        flush=True,
+    )
 
 
 def write_results(results_path: str, results: dict) -> None:
     """
     Write analysis results to a JSON file.
+
+    Saves processed diagnostic results to a JSON file at the specified path,
+    with appropriate formatting for readability.
 
     Args:
         results_path: Path to write the results to
@@ -430,7 +656,9 @@ def write_results(results_path: str, results: dict) -> None:
     with open(results_path, mode="w", encoding="utf-8") as file:
         json.dump(results, file, indent=3, ensure_ascii=False)
 
-    print(f"{_color_text('COMPLETED')} Results available at:\n{results_path}", end="\n\n")
+    print(
+        f"{color_text('COMPLETED')} Results available at:\n{results_path}", end="\n\n"
+    )
 
 
 def print_execution_progression(
@@ -441,16 +669,18 @@ def print_execution_progression(
     """
     Print the progress of text processing in the terminal.
 
+    Displays a progress indicator showing how many texts have been processed
+    out of the total, providing real-time feedback during execution.
+
     Args:
         model_name: Name of the model being used
         processed_texts: Number of texts processed so far
         total_texts: Total number of texts to process
     """
-
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
 
     print(
-        f"\r{_color_text('TESTING')} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
+        f"\r{color_text('TESTING')} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
         end="",
         flush=True,
     )

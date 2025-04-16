@@ -3,12 +3,15 @@ Testing module for medical diagnostic analysis.
 Evaluates model performance on medical text diagnosis.
 """
 
+from argparse import Namespace
 import time
 from pathlib import Path
 
+from langchain_chroma import Chroma
+
 from ._validator import validate_result
 from .analyzer import evolution_text_analysis
-from .auxiliary_functions import check_model, print_evaluated_results
+from .auxiliary_functions import choose_model, get_listed_models_info, model_installed, print_evaluated_results
 from .data_models import (
     DiagnosticResult,
     EvaluationOutput,
@@ -18,7 +21,7 @@ from .data_models import (
 from .results_manager import ResultsManager
 
 
-def process_record(processed: dict, expected: str) -> EvaluationOutput:
+def process_text(processed: dict, expected: str) -> EvaluationOutput:
     """
     Process an individual diagnostic result and evaluate its correctness.
 
@@ -60,7 +63,6 @@ def calculate_metrics(
     evaluated: dict[str, EvaluationOutput],
     total_texts: int,
     num_batches: int,
-    prompt_index: int,
     start: float,
     end: float,
     date_format: str,
@@ -74,7 +76,6 @@ def calculate_metrics(
         evaluated: dictionary of evaluation outputs
         total_texts: Total number of texts processed
         num_batches: Number of batches used
-        prompt_index: Index of the prompt used
         start: Start time of the evaluation
         end: End time of the evaluation
         date_format: Format string for date/time
@@ -101,7 +102,6 @@ def calculate_metrics(
         start_time=time.strftime(date_format, time.localtime(start)),
         end_time=time.strftime(date_format, time.localtime(end)),
         num_batches=num_batches,
-        prompt_index=prompt_index,
         normalized=normalized,
         expanded=expanded
     )
@@ -115,7 +115,6 @@ def evaluate_model(
     expansion_mode: bool,
     num_batches: int,
     num_texts: int,
-    prompt_index: int,
     date_format: str = "%H:%M:%S %d-%m-%Y"
 ) -> EvaluationResult:
     """
@@ -129,7 +128,6 @@ def evaluate_model(
         expansion_mode: Whether to use expansion mode
         num_batches: Number of batches to process
         num_texts: Number of texts to process
-        prompt_index: Index of the prompt used
         date_format: Format string for date/time
 
     Returns:
@@ -137,7 +135,7 @@ def evaluate_model(
     """
     start = time.time()
     processed = evolution_text_analysis(
-        model_info["model_name"],
+        model_info.model_name,
         prompt,
         evolution_texts,
         chroma_db,
@@ -148,7 +146,7 @@ def evaluate_model(
     end = time.time()
 
     evaluated = {
-        key: process_record(result, evolution_texts[i]["principal_diagnostic"])
+        key: process_text(result, evolution_texts[i]["principal_diagnostic"])
         for i, (key, result) in enumerate(processed.items())
     }
 
@@ -156,7 +154,6 @@ def evaluate_model(
         evaluated,
         total_texts=num_texts,
         num_batches=num_batches,
-        prompt_index=prompt_index,
         start=start,
         end=end,
         date_format=date_format,
@@ -172,63 +169,49 @@ def evaluate_model(
 
 
 def evaluate_analysis(
-    models: list[dict],
+    models: list[str],
     prompts: dict,
     evolution_texts: list[dict],
     testing_results_dir: Path,
-    chroma_db,
-    expansion_mode: bool,
-    num_batches: int,
-    num_texts: int,
-    verbose: bool
+    chroma_db: Chroma,
+    args: Namespace
 ):
     """
     Main function to evaluate multiple models or prompts.
 
     Args:
-        models: List of models to evaluate
+        models: List of model names to evaluate
         prompts_info: Tuple of (test_prompts flag, prompts list)
         opt_prompt: Index of the optimal prompt
         evolution_texts: List of medical texts to analyze
         testing_results_dir: Directory to store test results
         chroma_db: Chroma database for normalization
-        expansion_mode: Whether to use expansion mode
-        num_batches: Number of batches to process
-        num_texts: Number of texts to process
-        verbose: Whether to print verbose output
+        args: all arguments to control the flow of the program
     """
-    eval_mode = len(models) == 1
-    
     # Initialize the results manager
-    results_manager = ResultsManager(testing_results_dir, eval_mode)
-    
+    results_manager = ResultsManager(testing_results_dir, args.eval_mode == 2)
+
+    # Multiple models evaluation
+    if args.eval_mode == 1:
+        models = get_listed_models_info(
+            models, args.only_installed_models_mode)
+        for i, model in enumerate(models):
+            if model_installed(model.model_name):
+                evaluation_result = evaluate_model(
+                    model, prompts, evolution_texts, chroma_db,
+                    args.expansion_mode, args.num_batches, args.num_texts
+                )
+
+                results_manager.add_result(evaluation_result)
+        results_manager.generate_comprehensive_report()
+
     # Single model evaluation
-    if eval_mode:
+    elif args.eval_mode == 2:
+        model = choose_model(models, args.only_installed_models_mode)
         evaluation_result = evaluate_model(
-            models[0], prompts, evolution_texts, chroma_db,
-            expansion_mode, num_batches, num_texts, 0
+            model, prompts, evolution_texts, chroma_db,
+            args.expansion_mode, args.num_batches, args.num_texts
         )
 
-        # Print detailed results if verbose
-        print_evaluated_results(models[0], evaluation_result, verbose)
-
-        # Add to results manager
+        print_evaluated_results(model, evaluation_result, args.verbose_mode)
         results_manager.add_result(evaluation_result)
-    # Multiple models evaluation
-    else:
-        # Process all models
-        for i, model in enumerate(models):
-            if check_model(model):
-                # Test with a single prompt
-                    evaluation_result = evaluate_model(
-                        model, prompts, evolution_texts, chroma_db,
-                        expansion_mode, num_batches, num_texts, 0
-                    )
-
-                    # Add to results manager
-                    results_manager.add_result(evaluation_result)
-
-    # Generate comprehensive report
-    report_path = results_manager.generate_comprehensive_report()
-    print(
-        f"\nEvaluation complete. Comprehensive report available at:\n{report_path}", end="\n\n")

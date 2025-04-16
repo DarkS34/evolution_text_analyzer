@@ -19,51 +19,29 @@ Main modules:
 
 __version__ = "0.1.0"
 
-# Main public imports to facilitate package usage
+# Import only the functions used in main.py
 from .analyzer import evolution_text_analysis
 from .tester import evaluate_analysis
-from .results_manager import ResultsManager
-from .data_models import (
-    DiagnosticResult,
-    EvaluationOutput,
-    EvaluationResult,
-    PerformanceMetrics,
-    ModelInfo
-)
 from .auxiliary_functions import (
+    check_ollama_connection,
     get_analyzer_configuration,
     get_args,
+    model_installed,
     get_evolution_texts,
     get_chroma_db,
-    get_listed_models,
-    choose_model,
-    write_results,
-    check_ollama_connection,
-    check_model
+    write_results
 )
-from ._validator import validate_result
-from ._custom_parser import CustomParser, DiagnosticNormalizerRAG
 
 # Define what should be exposed with "from package import *"
 __all__ = [
+    # Functions used in main.py
     "evolution_text_analysis",
     "evaluate_analysis",
-    "ResultsManager",
-    "DiagnosticResult",
-    "EvaluationOutput",
-    "EvaluationResult", 
-    "PerformanceMetrics",
-    "ModelInfo",
+    "check_ollama_connection",
     "get_analyzer_configuration",
     "get_args",
+    "model_installed",
     "get_evolution_texts",
     "get_chroma_db",
-    "get_listed_models",
-    "choose_model",
-    "write_results",
-    "check_ollama_connection",
-    "check_model",
-    "validate_result",
-    "CustomParser",
-    "DiagnosticNormalizerRAG"
+    "write_results"
 ]

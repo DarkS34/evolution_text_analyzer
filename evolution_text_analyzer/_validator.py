@@ -41,23 +41,6 @@ EXTENDED_DIAGNOSTICS: dict[str, str] = {
     "Beçhet": "Enfermedad de Behçet",
     "Artritis gotosa aguda": "Gota",
     "Artritis goutosa": "Gota",
-    "AR": "Artritis Reumatoide",
-    "EA": "Espondilitis Anquilosante",
-    "APs": "Artritis Psoriásica",
-    "FM": "Fibromialgia",
-    "Gota": "Artritis Gotosa",
-    "OA": "Osteoartritis",
-    "Sjögren": "Síndrome de Sjögren",
-    "SJÖGREN": "Síndrome de Sjögren",
-    "Lupus": "Lupus Eritematoso Sistémico",
-    "SS": "Síndrome de Sjögren",
-    "SS 1°": "Síndrome de Sjögren Primario",
-    "SS 2°": "Síndrome de Sjögren Secundario",
-    "Sjogren": "Síndrome de Sjögren",
-    "Sind. Sjogren": "Síndrome de Sjögren",
-    "Síndrome Sjögren": "Síndrome de Sjögren",
-    "Vasculitis sistémica": "Vasculitis",
-    "Artritis microcristalina": "Artritis Microcristalina",
     "Gouto crónico": "Gota"
 }
 
@@ -92,19 +75,19 @@ def normalize_name(name: str) -> str:
     if name is None:
         return ""
 
-    # Expand known abbreviations
+    # 1. Expand known abbreviations
     expanded_name = EXTENDED_DIAGNOSTICS.get(name.strip(), name)
 
-    # Normalize: remove accents, convert to lowercase
+    # 2. Normalize: remove accents, convert to lowercase
     normalized = "".join(
         c for c in unicodedata.normalize("NFKD", expanded_name)
         if not unicodedata.combining(c)
     ).lower()
 
-    # Remove punctuation and special characters
+    # 3. Remove punctuation and special characters
     normalized = re.sub(r'[^\w\s]', ' ', normalized)
 
-    # Remove multiple spaces and spaces at beginning/end
+    # 4. Remove multiple spaces and spaces at beginning/end
     normalized = re.sub(r'\s+', ' ', normalized).strip()
 
     return normalized
@@ -189,11 +172,8 @@ def validate_result(processed_diag: str, correct_diag: str) -> bool:
     # Handle null cases
     if processed_diag is None or correct_diag is None:
         return False
-
-    # Handle empty strings
     if isinstance(processed_diag, str) and processed_diag.strip() == "":
         return False
-
     if isinstance(correct_diag, str) and correct_diag.strip() == "":
         return False
 
@@ -201,33 +181,27 @@ def validate_result(processed_diag: str, correct_diag: str) -> bool:
     processed_norm = normalize_name(processed_diag)
     correct_norm = normalize_name(correct_diag)
 
-    # Direct match after normalization
+    # 1. Direct match after normalization
     if processed_norm == correct_norm:
         return True
 
-    # Check if all key terms in correct diagnosis are in processed diagnosis
+    # 2. Check if all key terms in correct diagnosis are in processed diagnosis
     processed_terms = set(get_key_terms(processed_diag))
     correct_terms = set(get_key_terms(correct_diag))
-
     if len(correct_terms) > 0 and correct_terms.issubset(processed_terms):
         return True
 
-    # Calculate similarity scores
+    # 3. Using fuzzy string matching with various similarity metrics
     ratio, partial_ratio, token_sort_ratio = calculate_similarity_scores(
         processed_norm, correct_norm)
-
-    # Check if general similarity is high enough
     if max(ratio, token_sort_ratio) >= SIMILARITY_THRESHOLD:
         return True
-
-    # Special case for short diagnoses
     if len(correct_norm) < 15 and partial_ratio >= 90:
         return True
 
-    # Special case for substring relationships
+    # 4. Special case for substring relationships
     if len(correct_norm) > 10 and len(processed_norm) > 10:
         if (correct_norm in processed_norm) or (processed_norm in correct_norm):
             return True
 
-    # If none of the validation methods passed, diagnoses don't match
     return False
