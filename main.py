@@ -10,6 +10,7 @@ from evolution_text_analyzer.auxiliary_functions import (
     check_ollama_connection,
     get_analyzer_configuration,
     get_args,
+    get_context_window_length,
     get_evolution_texts,
     get_chroma_db,
     model_installed,
@@ -34,7 +35,7 @@ def run_test_analysis_mode(models: list[str], prompts: dict, chroma_db, args) ->
     evolution_texts = get_evolution_texts(
         base_path / "testing" / args.et_filename)
 
-    testing_results_dir = config_file.parent / "testing_results"
+    testing_results_dir = config_file.parent / "testing" / "results"
     testing_results_dir.mkdir(parents=True, exist_ok=True)
 
     args.num_texts = args.num_texts if args.num_texts is not None else len(
@@ -69,15 +70,17 @@ def run_analysis_mode(model: str, prompts: dict, chroma_db, args) -> None:
 
     results_dir = config_file.parent / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
+    
+    ctx_len = get_context_window_length(model)
 
     results = evolution_text_analysis(
         model,
         prompts,
+        ctx_len,
         evolution_texts,
         chroma_db,
-        args.expansion_mode,
         args.num_batches,
-        args.num_texts,
+        args.num_texts
     )
 
     write_results(results_dir / "processed_evolution_texts.json", results)

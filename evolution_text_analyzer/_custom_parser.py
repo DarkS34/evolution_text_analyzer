@@ -37,7 +37,7 @@ class DiagnosticNormalizerRAG:
             csv_path: Path to the CSV file containing reference diagnoses and ICD codes
         """
         self.prompt = prompt
-        self.df = pd.read_csv(csv_path)
+        self.df = pd.read_csv(csv_path, sep="\t")
         self.df['text'] = self.df['principal_diagnostic'] + \
             ':' + self.df['icd_code']
         self.vector_store = vector_store
@@ -179,11 +179,11 @@ class CustomParser(BaseOutputParser):
                 {"principal_diagnostic": principal_diagnostic})
 
             # Look for ICD pattern
-            icd_match = re.search(r'([A-Z]\d+\.\d+)', icd_code)
+            icd_match = re.search(r'([A-Z]\d+\.?\d*)', icd_code)
 
             # Check if a match was found
             if icd_match:
-                cleaned_icd = re.sub(r"[\n\r\s\.]", "", icd_match.group(1))
+                cleaned_icd = re.sub(r"[\n\r\s]", "", icd_match.group(1))
                 return {
                     "icd_code": cleaned_icd,
                     "principal_diagnostic": principal_diagnostic
@@ -233,11 +233,6 @@ class CustomParser(BaseOutputParser):
                     principal_diagnostic=principal_diagnostic)
                 parsed = normalized
 
-            # Format ICD code with a dot if needed
-            if (len(parsed["icd_code"]) > 3):
-                parsed["icd_code"] = parsed["icd_code"][:3] + \
-                    "." + parsed["icd_code"][3:]
-
             return parsed
         except Exception as e:
-            raise ValueError(f"An error ocurred while trying to parse the result: {e}")
+            raise Exception(f"An error ocurred while trying to parse the result: {e}")

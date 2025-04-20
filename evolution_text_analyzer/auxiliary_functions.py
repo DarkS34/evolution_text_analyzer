@@ -14,6 +14,7 @@ import json
 import os
 from argparse import ArgumentParser
 from pathlib import Path
+import subprocess
 
 import ollama
 import pandas as pd
@@ -68,6 +69,36 @@ def check_ollama_connection(url: str = "http://localhost:11434") -> None:
     except requests.ConnectionError:
         print(f"{color_text('ERROR', 'red')} Ollama is not running.")
         exit(1)
+        
+
+def get_context_window_length(model_name: str) -> int:
+    """
+    Get raw model information directly using CLI command.
+    
+    Args:
+        model_name: Name of the Ollama model
+        
+    Returns:
+        Raw output from the 'ollama show' command
+    """
+    try:
+        result = subprocess.run(
+            ["ollama", "show", model_name],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        for line in result.stdout.split('\n'):
+            line = line.strip()
+            if "context length" in line.lower():
+                return int(line.split()[-1])
+        return -1
+    except subprocess.CalledProcessError as e:
+        print(f"Error running ollama show: {e}")
+        return -1
+    except FileNotFoundError:
+        print("Error: ollama command not found. Is it installed and in PATH?")
+        return -1
 
 
 def get_analyzer_configuration(path: Path):
@@ -111,7 +142,6 @@ def get_analyzer_configuration(path: Path):
         raise ValueError("The 'prompts' field must be a dictionary")
 
     required_prompts = [
-        "expand_diagnostic_prompt",
         "diagnostic_prompt",
         "parser_prompts",
     ]
@@ -212,12 +242,6 @@ def get_args():
         help="Print detailed output during processing"
     )
     parser.add_argument(
-        "-E", "--expand",
-        action="store_true",
-        dest="expansion_mode",
-        help="Expand evolution texts before processing"
-    )
-    parser.add_argument(
         "-N", "--normalize",
         action="store_true",
         dest="normalization_mode",
@@ -303,7 +327,7 @@ def _create_chroma_db(
         end="",
     )
 
-    df = pd.read_csv(csv_path, quotechar='"')
+    df = pd.read_csv(csv_path, sep="\t")
     df["text"] = df["principal_diagnostic"] + ":" + df["icd_code"]
     texts = df["text"].tolist()
     metadatas = df[["principal_diagnostic", "icd_code"]
@@ -447,7 +471,7 @@ def _get_model_info(model_name: str) -> ModelInfo:
 
 def get_listed_models_info(
     listed_model_names: list[str], installed_only: bool = False
-) -> list[dict]:
+) -> list[ModelInfo]:
     """
     Get information about multiple models from a list.
 
@@ -558,7 +582,7 @@ def _display_models_table(models: list[ModelInfo]) -> None:
         )
 
 
-def choose_model(model_names: list[str], installed_only: bool = False) -> list[str] | None:
+def choose_model(model_names: list[str], installed_only: bool = False) -> list[ModelInfo] | None:
     """
     Display available models and let the user choose one.
 
@@ -591,6 +615,7 @@ def choose_model(model_names: list[str], installed_only: bool = False) -> list[s
 
         print(
             f"{color_text('ERROR', 'red')} Invalid selection. Please try again.")
+        
 
 
 def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> None:
@@ -680,7 +705,7 @@ def print_execution_progression(
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
 
     print(
-        f"\r{color_text('TESTING')} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
+        f"\r{color_text('PROCESSING')} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
         end="",
         flush=True,
     )

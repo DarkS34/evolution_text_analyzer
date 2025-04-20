@@ -86,9 +86,6 @@ class PerformanceMetrics(BaseModel):
     normalized: bool = Field(
         description="Whether diagnosis normalization was applied"
     )
-    expanded: bool = Field(
-        description="Whether text expansion was applied"
-    )
 
 
 class ModelInfo(BaseModel):

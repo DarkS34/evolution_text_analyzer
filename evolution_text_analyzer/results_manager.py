@@ -59,7 +59,6 @@ class ResultsManager:
         total_texts = result.performance.total_texts
         duration = result.performance.duration
         normalized = result.performance.normalized
-        expanded = result.performance.expanded
 
         # Create summary entry
         summary_entry = {
@@ -70,7 +69,6 @@ class ResultsManager:
             "total_texts": total_texts,
             "duration": duration,
             "normalized": normalized,
-            "expanded": expanded,
         }
 
         self.summary_data.append(summary_entry)
@@ -79,7 +77,8 @@ class ResultsManager:
         self._write_individual_result(result)
 
         # Update summary file
-        self._write_summary()
+        if not self.single_model_mode:
+            self._write_summary()
 
     def _write_individual_result(self, result: EvaluationResult) -> None:
         """
@@ -92,14 +91,13 @@ class ResultsManager:
         model_name = result.model_info.model_name.replace(
             ":", "-").replace("_", "-").replace(".", "")
         normalized_tag = "_N" if result.performance.normalized else ""
-        expanded_tag = "_E" if result.performance.expanded else ""
 
         # Change saving strategy if execute just for one model
         if self.single_model_mode:
-            filename = f"detailed_results_{model_name}{normalized_tag}{expanded_tag}.json"
+            filename = f"detailed_results_{model_name}{normalized_tag}.json"
             file_path = self.results_dir / filename
         else:
-            filename = f"{model_name}{normalized_tag}{expanded_tag}.json"
+            filename = f"{model_name}{normalized_tag}.json"
             file_path = self.results_dir / "individual_results" / filename
             file_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -167,20 +165,19 @@ class ResultsManager:
         plt.savefig(viz_dir / "performance_comparison.png", dpi=300)
         plt.close()
 
-        if not self.single_model_mode and len(df) > 1:
-            plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(12, 6))
 
-            df_time_sorted = df.sort_values("duration")
+        df_time_sorted = df.sort_values("duration")
 
-            if len(df_time_sorted) > 10:
-                df_time_sorted = df_time_sorted.head(10)
+        if len(df_time_sorted) > 10:
+            df_time_sorted = df_time_sorted.head(10)
 
-            plt.barh(df_time_sorted["model_name"], df_time_sorted["duration"])
-            plt.xlabel("Execution Time (seconds)")
-            plt.title("Model Execution Time Comparison")
-            plt.tight_layout()
-            plt.savefig(viz_dir / "execution_time_comparison.png", dpi=300)
-            plt.close()
+        plt.barh(df_time_sorted["model_name"], df_time_sorted["duration"])
+        plt.xlabel("Execution Time (seconds)")
+        plt.title("Model Execution Time Comparison")
+        plt.tight_layout()
+        plt.savefig(viz_dir / "execution_time_comparison.png", dpi=300)
+        plt.close()
 
     def get_best_model(self) -> Optional[Dict]:
         """
