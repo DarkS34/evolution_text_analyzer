@@ -12,14 +12,13 @@ from evolution_text_analyzer.auxiliary_functions import (
     get_args,
     get_context_window_length,
     get_evolution_texts,
-    get_chroma_db,
     model_installed,
     write_results,
 )
 from evolution_text_analyzer.tester import evaluate_analysis
 
 
-def run_test_analysis_mode(models: list[str], prompts: dict, chroma_db, args) -> None:
+def run_test_analysis_mode(models: list[str], prompts: dict, args) -> None:
     """
     Run the system in test analysis mode to evaluate model performance.
 
@@ -46,12 +45,11 @@ def run_test_analysis_mode(models: list[str], prompts: dict, chroma_db, args) ->
         prompts,
         evolution_texts,
         testing_results_dir,
-        chroma_db,
         args
     )
 
 
-def run_analysis_mode(model: str, prompts: dict, chroma_db, args) -> None:
+def run_analysis_mode(model: str, prompts: dict, args) -> None:
     """
     Run the system in production analysis mode with a single optimal model.
 
@@ -78,9 +76,9 @@ def run_analysis_mode(model: str, prompts: dict, chroma_db, args) -> None:
         prompts,
         ctx_len,
         evolution_texts,
-        chroma_db,
         args.num_batches,
-        args.num_texts
+        args.num_texts,
+        args.normalization_mode
     )
 
     write_results(results_dir / "processed_evolution_texts.json", results)
@@ -100,15 +98,12 @@ if __name__ == "__main__":
     # Process command line arguments
     args = get_args()
 
-    # Initialize vector database for normalization if requested
-    chroma_db = get_chroma_db() if args.normalization_mode else None
-
     # Run in appropriate mode based on command line arguments
     if args.test_mode:
         run_test_analysis_mode(
-            models, config["prompts"], chroma_db, args)
+            models, config["prompts"], args)
     else:
         model_name = models[opt_model]
         if model_installed(model_name):
             run_analysis_mode(model_name,
-                              config["prompts"], chroma_db, args)
+                              config["prompts"], args)

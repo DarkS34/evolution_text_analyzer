@@ -28,7 +28,6 @@ from .auxiliary_functions import (
     get_args,
     model_installed,
     get_evolution_texts,
-    get_chroma_db,
     write_results
 )
 
@@ -42,6 +41,5 @@ __all__ = [
     "get_args",
     "model_installed",
     "get_evolution_texts",
-    "get_chroma_db",
     "write_results"
 ]

@@ -49,7 +49,7 @@ class EvolutionTextSummarizer:
         """Check if text needs summarization based on token count."""
         tokens_per_word = 4
         word_chunk = int(1024 / tokens_per_word)
-        
+
         words = text.split()
         total_words = len(words)
         num_blocks = (total_words + (word_chunk-1)) // word_chunk
@@ -65,7 +65,8 @@ class EvolutionTextSummarizer:
                 partial_token_count = self.model.get_num_tokens(block_text)
                 total_token_count += partial_token_count
             except Exception:
-                partial_token_count = int((end_idx - start_idx) * tokens_per_word)
+                partial_token_count = int(
+                    (end_idx - start_idx) * tokens_per_word)
                 total_token_count += partial_token_count
 
         return total_token_count > MAX_EVOLUTION_TEXT_TOKENS
@@ -93,45 +94,23 @@ class EvolutionTextSummarizer:
 def evolution_text_analysis(
     model_name: str,
     prompts: dict[str],
+    norm_mode: bool,
     model_context_window: int,
     evolution_texts: list[dict],
-    chroma_db,
     num_batches: int,
     total_evolution_texts_to_process: int,
 ):
-    """
-    Analyze medical evolution texts to extract diagnoses and ICD codes.
-
-    This function processes a set of medical evolution texts using a specified language model.
-    It can optionally expand the texts before extraction and uses a parallel processing approach
-    to improve performance.
-
-    Args:
-        model_name: Name of the language model to use for analysis
-        prompts: Dictionary containing different prompts for the analysis process
-        evolution_texts: List of dictionaries containing medical evolution texts
-        chroma_db: Chroma vector database for normalization (or None if not using normalization)
-        expansion_mode: Whether to expand the evolution texts before extraction
-        num_batches: Number of batches for parallel processing
-        total_evolution_texts_to_process: Maximum number of texts to process
-
-    Returns:
-        Dictionary mapping text IDs to extracted diagnoses and ICD codes
-    """
     model = OllamaLLM(
         model=model_name,
         temperature=0,
         num_ctx=DEFAULT_CONTEXT_WINDOW if model_context_window > DEFAULT_CONTEXT_WINDOW else model_context_window
     )
-    model.get_num_tokens_from_messages
     summarizer = EvolutionTextSummarizer(model)
 
     diagnosis_prompt = PromptTemplate.from_template(
         prompts["diagnostic_prompt"])
 
-    parser_prompt = prompts["parser_prompts"]["rag_prompt"] if chroma_db is not None else prompts["parser_prompts"]["icd_code_prompt"]
-
-    parser = CustomParser(chroma_db, model, parser_prompt)
+    parser = CustomParser(model, norm_mode, prompts["parser_icd_code_prompt"])
 
     # Diagnosis chain
     diagnosis_chain = diagnosis_prompt | model | parser

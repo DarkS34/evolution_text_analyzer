@@ -19,13 +19,12 @@ import subprocess
 import ollama
 import pandas as pd
 import requests
-from langchain_chroma import Chroma
-from langchain_ollama import OllamaEmbeddings
 from pydantic import BaseModel, ByteSize
 
 from .data_models import ModelInfo
 
-EMBEDDINGS_MODEL = "nomic-embed-text:latest"
+# EMBEDDINGS_MODEL = "kronos483/MedEmbed-large-v0.1"
+# RAG_DATASET = "snomed_description_icd_normalized.csv"
 
 
 def color_text(text, color="green"):
@@ -69,15 +68,15 @@ def check_ollama_connection(url: str = "http://localhost:11434") -> None:
     except requests.ConnectionError:
         print(f"{color_text('ERROR', 'red')} Ollama is not running.")
         exit(1)
-        
+
 
 def get_context_window_length(model_name: str) -> int:
     """
     Get raw model information directly using CLI command.
-    
+
     Args:
         model_name: Name of the Ollama model
-        
+
     Returns:
         Raw output from the 'ollama show' command
     """
@@ -141,9 +140,10 @@ def get_analyzer_configuration(path: Path):
     if not isinstance(config["prompts"], dict):
         raise ValueError("The 'prompts' field must be a dictionary")
 
+    # Verify required prompts in the new structure
     required_prompts = [
         "diagnostic_prompt",
-        "parser_prompts",
+        "parser_icd_code_prompt"
     ]
     missing_prompts = [
         prompt for prompt in required_prompts if prompt not in config["prompts"]
@@ -152,20 +152,7 @@ def get_analyzer_configuration(path: Path):
         raise ValueError(
             f"Missing required prompts: {', '.join(missing_prompts)}")
 
-    if not isinstance(config["prompts"]["parser_prompts"], dict):
-        raise ValueError("The 'parser_prompts' field must be a dictionary")
-
-    required_parser_prompts = ["rag_prompt", "icd_code_prompt"]
-    missing_parser_prompts = [
-        prompt
-        for prompt in required_parser_prompts
-        if prompt not in config["prompts"]["parser_prompts"]
-    ]
-    if missing_parser_prompts:
-        raise ValueError(
-            f"Missing required parser prompts: {', '.join(missing_parser_prompts)}"
-        )
-
+    # Validate optimal_model
     if not isinstance(config["optimal_model"], int) or not config[
         "optimal_model"
     ] == int(config["optimal_model"]):
@@ -300,51 +287,57 @@ def get_evolution_texts(path: Path):
     return texts
 
 
-def _create_chroma_db(
-    index_path: str = "icd_vector_db", model_name: str = "nomic-embed-text:latest"
-) -> bool:
-    """
-    Create a new Chroma vector database for ICD data.
+# def _create_chroma_db(index_path: str) -> bool:
+#     """
+#     Create a new Chroma vector database for ICD data.
 
-    Builds and initializes a vector database for medical diagnosis normalization
-    using embeddings from the specified model.
+#     Builds and initializes a vector database for medical diagnosis normalization
+#     using embeddings from the specified model.
 
-    Args:
-        index_path: Directory path where the database will be stored
-        model_name: Name of the embedding model to use
+#     Args:
+#         index_path: Directory path where the database will be stored
 
-    Returns:
-        Chroma database object if successful
+#     Returns:
+#         Chroma database object if successful
 
-    Raises:
-        ValueError: If database creation fails
-    """
-    index_dir = Path(index_path)
-    csv_path: str = "icd_dataset.csv"
+#     Raises:
+#         ValueError: If database creation fails
+#     """
+#     index_dir = Path(index_path)
+#     csv_path: str = RAG_DATASET
 
-    print(
-        f"\r{color_text('INFO')} Chroma database not found. Creating new one from {csv_path}...",
-        end="",
-    )
+#     print(
+#         f"\r{color_text('INFO')} Chroma database not found. Creating new one from {csv_path}...",
+#         end="",
+#     )
 
-    df = pd.read_csv(csv_path, sep="\t")
-    df["text"] = df["principal_diagnostic"] + ":" + df["icd_code"]
-    texts = df["text"].tolist()
-    metadatas = df[["principal_diagnostic", "icd_code"]
-                   ].to_dict(orient="records")
+#     # Load CSV and fill missing values with empty strings
+#     df = pd.read_csv(csv_path, sep="\t").fillna("")
 
-    try:
-        embeddings = OllamaEmbeddings(model=model_name)
-        chroma_db = Chroma.from_texts(
-            texts=texts,
-            embedding=embeddings,
-            metadatas=metadatas,
-            persist_directory=str(index_dir),
-        )
+#     # Build the text to embed
+#     df["text"] = (
+#         df["icd_code"].astype(str) + ": " +
+#         df["description_es"].astype(str) + ", " +
+#         df["description_en"].astype(str) + ", " +
+#         df["description_es_normalized"].astype(str)
+#     )
 
-        return chroma_db
-    except Exception as e:
-        raise ValueError("Failed to create Chroma DB: ", e)
+#     texts = df["text"].tolist()
+#     metadatas = df[["icd_code", "description_es", "description_en", "description_es_normalized"]].to_dict(orient="records")
+
+#     try:
+#         embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
+#         chroma_db = Chroma.from_texts(
+#             texts=texts,
+#             embedding=embeddings,
+#             metadatas=metadatas,
+#             persist_directory=str(index_dir),
+#         )
+
+#         return chroma_db
+#     except Exception as e:
+#         raise ValueError("Failed to create Chroma DB: ", e)
+
 
 
 def get_installed_models(with_info: bool = False):
@@ -399,31 +392,32 @@ def model_installed(model_name: str) -> bool:
         return _download_model(model_name)
 
 
-def get_chroma_db(index_path: str = "icd_vector_db") -> Chroma:
-    """
-    Get Chroma vector database for ICD data, creating it if it doesn't exist.
+# def get_chroma_db(index_path: str = "snomed_terminology_vector_db") -> Chroma:
+#     """
+#     Get Chroma vector database for ICD data, creating it if it doesn't exist.
 
-    Provides access to the vector database used for diagnosis normalization,
-    initializing a new database if one doesn't exist at the specified path.
+#     Provides access to the vector database used for diagnosis normalization,
+#     initializing a new database if one doesn't exist at the specified path.
 
-    Args:
-        index_path: Directory path where the database is stored
+#     Args:
+#         index_path: Directory path where the database is stored
 
-    Returns:
-        Chroma database object, or None if creation fails
-    """
-    index_dir = Path(index_path)
-    try:
-        if model_installed(EMBEDDINGS_MODEL):
-            if not index_dir.exists():
-                chromadb = _create_chroma_db(index_path, EMBEDDINGS_MODEL)
-            else:
-                embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
-                chromadb = Chroma(persist_directory=str(
-                    index_dir), embedding_function=embeddings)
-            return chromadb
-    except Exception as e:
-        print(f"{color_text('ERROR', 'red')}", e)
+#     Returns:
+#         Chroma database object, or None if creation fails
+#     """
+#     index_dir = Path(index_path)
+#     try:
+#         if model_installed(EMBEDDINGS_MODEL):
+#             if not index_dir.exists():
+#                 chromadb = _create_chroma_db(index_path)
+#             else:
+#                 embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
+#                 chromadb = Chroma(persist_directory=str(
+#                     index_dir), embedding_function=embeddings)
+#             return chromadb
+#     except Exception as e:
+#         print(f"{color_text('ERROR', 'red')}", e)
+#         exit(1)
 
 
 def _get_model_info(model_name: str) -> ModelInfo:
@@ -615,7 +609,6 @@ def choose_model(model_names: list[str], installed_only: bool = False) -> list[M
 
         print(
             f"{color_text('ERROR', 'red')} Invalid selection. Please try again.")
-        
 
 
 def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> None:

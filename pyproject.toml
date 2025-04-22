@@ -10,7 +10,6 @@ dependencies = [
     "ollama>=0.4.7",
     "pandas>=2.2.3",
     "torch>=2.6.0",
-    "langchain-chroma>=0.2.2",
     "rapidfuzz>=3.13.0",
     "matplotlib>=3.10.1",
     "transformers>=4.51.3",

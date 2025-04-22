@@ -7,8 +7,6 @@ from argparse import Namespace
 import time
 from pathlib import Path
 
-from langchain_chroma import Chroma
-
 from ._validator import validate_result
 from .analyzer import evolution_text_analysis
 from .auxiliary_functions import choose_model, get_context_window_length, get_listed_models_info, model_installed, print_evaluated_results
@@ -109,8 +107,8 @@ def calculate_metrics(
 def evaluate_model(
     model_info: ModelInfo,
     prompt: dict,
+    normalization_mode: bool,
     evolution_texts: list[dict],
-    chroma_db,
     num_batches: int,
     num_texts: int,
     date_format: str = "%H:%M:%S %d-%m-%Y"
@@ -137,9 +135,9 @@ def evaluate_model(
     processed = evolution_text_analysis(
         model_info.model_name,
         prompt,
+        normalization_mode,
         ctx_len,
         evolution_texts,
-        chroma_db,
         num_batches,
         num_texts,
     )
@@ -157,7 +155,7 @@ def evaluate_model(
         start=start,
         end=end,
         date_format=date_format,
-        normalized=chroma_db is not None,
+        normalized=normalization_mode,
     )
 
     return EvaluationResult(
@@ -172,7 +170,6 @@ def evaluate_analysis(
     prompts: dict,
     evolution_texts: list[dict],
     testing_results_dir: Path,
-    chroma_db: Chroma,
     args: Namespace
 ):
     """
@@ -197,7 +194,7 @@ def evaluate_analysis(
         for i, model_info in enumerate(models):
             if model_installed(model_info.model_name):
                 evaluation_result = evaluate_model(
-                    model_info, prompts, evolution_texts, chroma_db, args.num_batches, args.num_texts
+                    model_info, prompts, args.normalization_mode, evolution_texts, args.num_batches, args.num_texts
                 )
 
                 results_manager.add_result(evaluation_result)
@@ -207,7 +204,7 @@ def evaluate_analysis(
     elif args.eval_mode == 2:
         model_info = choose_model(models, args.only_installed_models_mode)
         evaluation_result = evaluate_model(
-            model_info, prompts, evolution_texts, chroma_db, args.num_batches, args.num_texts
+            model_info, prompts, args.normalization_mode, evolution_texts, args.num_batches, args.num_texts
         )
 
         print_evaluated_results(
