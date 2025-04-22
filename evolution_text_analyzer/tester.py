@@ -21,17 +21,6 @@ from .results_manager import ResultsManager
 
 
 def process_text(processed: dict, expected: str) -> EvaluationOutput:
-    """
-    Process an individual diagnostic result and evaluate its correctness.
-
-    Args:
-        model_name: Name of the model that produced the result
-        processed: The processed diagnostic result
-        expected: The expected correct diagnostic
-
-    Returns:
-        An EvaluationOutput object with the validation result
-    """
     try:
         if not processed.get("processing_error"):
             valid = validate_result(
@@ -67,22 +56,6 @@ def calculate_metrics(
     date_format: str,
     normalized: bool,
 ) -> PerformanceMetrics:
-    """
-    Calculate performance metrics based on evaluation results.
-
-    Args:
-        evaluated: dictionary of evaluation outputs
-        total_texts: Total number of texts processed
-        num_batches: Number of batches used
-        start: Start time of the evaluation
-        end: End time of the evaluation
-        date_format: Format string for date/time
-        normalized: Whether normalization was used
-        expanded: Whether expansion was used
-
-    Returns:
-        PerformanceMetrics object with calculated metrics
-    """
     valid = sum(1 for e in evaluated.values() if e.valid)
     errors = sum(
         1 for e in evaluated.values()
@@ -113,22 +86,6 @@ def evaluate_model(
     num_texts: int,
     date_format: str = "%H:%M:%S %d-%m-%Y"
 ) -> EvaluationResult:
-    """
-    Evaluate a single model with the given parameters.
-
-    Args:
-        model_info: Information about the model to evaluate
-        prompt: Prompt to use for the evaluation
-        evolution_texts: List of medical texts to analyze
-        chroma_db: Chroma database for normalization
-        expansion_mode: Whether to use expansion mode
-        num_batches: Number of batches to process
-        num_texts: Number of texts to process
-        date_format: Format string for date/time
-
-    Returns:
-        EvaluationResult object with the evaluation results
-    """
     ctx_len = get_context_window_length(model_info.model_name)
 
     start = time.time()
@@ -172,18 +129,6 @@ def evaluate_analysis(
     testing_results_dir: Path,
     args: Namespace
 ):
-    """
-    Main function to evaluate multiple models or prompts.
-
-    Args:
-        models: List of model names to evaluate
-        prompts_info: Tuple of (test_prompts flag, prompts list)
-        opt_prompt: Index of the optimal prompt
-        evolution_texts: List of medical texts to analyze
-        testing_results_dir: Directory to store test results
-        chroma_db: Chroma database for normalization
-        args: all arguments to control the flow of the program
-    """
     # Initialize the results manager
     results_manager = ResultsManager(testing_results_dir, args.eval_mode == 2)
 

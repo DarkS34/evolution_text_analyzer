@@ -19,18 +19,6 @@ from evolution_text_analyzer.tester import evaluate_analysis
 
 
 def run_test_analysis_mode(models: list[str], prompts: dict, args) -> None:
-    """
-    Run the system in test analysis mode to evaluate model performance.
-
-    This function evaluates one or multiple language models on a set of medical texts,
-    comparing their diagnostic extraction accuracy. Results are stored for comparison.
-
-    Args:
-        models: List of model names to evaluate
-        prompts: Dictionary of prompts to use for diagnosis extraction
-        chroma_db: Vector database for diagnosis normalization (None if not using normalization)
-        args: Command line arguments containing execution parameters
-    """
     evolution_texts = get_evolution_texts(
         base_path / "testing" / args.et_filename)
 
@@ -50,18 +38,6 @@ def run_test_analysis_mode(models: list[str], prompts: dict, args) -> None:
 
 
 def run_analysis_mode(model: str, prompts: dict, args) -> None:
-    """
-    Run the system in production analysis mode with a single optimal model.
-
-    This function processes medical evolution texts to extract diagnoses and ICD codes
-    using the specified optimal model. Results are written to a JSON file.
-
-    Args:
-        model: Name of the model to use for analysis
-        prompts: Dictionary of prompts to use for diagnosis extraction
-        chroma_db: Vector database for diagnosis normalization (None if not using normalization)
-        args: Command line arguments containing execution parameters
-    """
     evolution_texts = get_evolution_texts(base_path / args.et_filename)
     args.num_texts = args.num_texts if args.num_texts is not None else len(
         evolution_texts)

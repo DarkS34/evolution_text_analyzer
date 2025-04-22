@@ -142,8 +142,8 @@ def get_analyzer_configuration(path: Path):
 
     # Verify required prompts in the new structure
     required_prompts = [
-        "diagnostic_prompt",
-        "parser_icd_code_prompt"
+        "gen_diagnostic_prompt",
+        "gen_icd_code_prompt"
     ]
     missing_prompts = [
         prompt for prompt in required_prompts if prompt not in config["prompts"]
@@ -287,59 +287,6 @@ def get_evolution_texts(path: Path):
     return texts
 
 
-# def _create_chroma_db(index_path: str) -> bool:
-#     """
-#     Create a new Chroma vector database for ICD data.
-
-#     Builds and initializes a vector database for medical diagnosis normalization
-#     using embeddings from the specified model.
-
-#     Args:
-#         index_path: Directory path where the database will be stored
-
-#     Returns:
-#         Chroma database object if successful
-
-#     Raises:
-#         ValueError: If database creation fails
-#     """
-#     index_dir = Path(index_path)
-#     csv_path: str = RAG_DATASET
-
-#     print(
-#         f"\r{color_text('INFO')} Chroma database not found. Creating new one from {csv_path}...",
-#         end="",
-#     )
-
-#     # Load CSV and fill missing values with empty strings
-#     df = pd.read_csv(csv_path, sep="\t").fillna("")
-
-#     # Build the text to embed
-#     df["text"] = (
-#         df["icd_code"].astype(str) + ": " +
-#         df["description_es"].astype(str) + ", " +
-#         df["description_en"].astype(str) + ", " +
-#         df["description_es_normalized"].astype(str)
-#     )
-
-#     texts = df["text"].tolist()
-#     metadatas = df[["icd_code", "description_es", "description_en", "description_es_normalized"]].to_dict(orient="records")
-
-#     try:
-#         embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
-#         chroma_db = Chroma.from_texts(
-#             texts=texts,
-#             embedding=embeddings,
-#             metadatas=metadatas,
-#             persist_directory=str(index_dir),
-#         )
-
-#         return chroma_db
-#     except Exception as e:
-#         raise ValueError("Failed to create Chroma DB: ", e)
-
-
-
 def get_installed_models(with_info: bool = False):
     """
     Get list of models installed in Ollama.
@@ -390,35 +337,6 @@ def model_installed(model_name: str) -> bool:
         return True
     else:
         return _download_model(model_name)
-
-
-# def get_chroma_db(index_path: str = "snomed_terminology_vector_db") -> Chroma:
-#     """
-#     Get Chroma vector database for ICD data, creating it if it doesn't exist.
-
-#     Provides access to the vector database used for diagnosis normalization,
-#     initializing a new database if one doesn't exist at the specified path.
-
-#     Args:
-#         index_path: Directory path where the database is stored
-
-#     Returns:
-#         Chroma database object, or None if creation fails
-#     """
-#     index_dir = Path(index_path)
-#     try:
-#         if model_installed(EMBEDDINGS_MODEL):
-#             if not index_dir.exists():
-#                 chromadb = _create_chroma_db(index_path)
-#             else:
-#                 embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
-#                 chromadb = Chroma(persist_directory=str(
-#                     index_dir), embedding_function=embeddings)
-#             return chromadb
-#     except Exception as e:
-#         print(f"{color_text('ERROR', 'red')}", e)
-#         exit(1)
-
 
 def _get_model_info(model_name: str) -> ModelInfo:
     """
@@ -702,3 +620,82 @@ def print_execution_progression(
         end="",
         flush=True,
     )
+
+# def _create_chroma_db(index_path: str) -> bool:
+#     """
+#     Create a new Chroma vector database for ICD data.
+
+#     Builds and initializes a vector database for medical diagnosis normalization
+#     using embeddings from the specified model.
+
+#     Args:
+#         index_path: Directory path where the database will be stored
+
+#     Returns:
+#         Chroma database object if successful
+
+#     Raises:
+#         ValueError: If database creation fails
+#     """
+#     index_dir = Path(index_path)
+#     csv_path: str = RAG_DATASET
+
+#     print(
+#         f"\r{color_text('INFO')} Chroma database not found. Creating new one from {csv_path}...",
+#         end="",
+#     )
+
+#     # Load CSV and fill missing values with empty strings
+#     df = pd.read_csv(csv_path, sep="\t").fillna("")
+
+#     # Build the text to embed
+#     df["text"] = (
+#         df["icd_code"].astype(str) + ": " +
+#         df["description_es"].astype(str) + ", " +
+#         df["description_en"].astype(str) + ", " +
+#         df["description_es_normalized"].astype(str)
+#     )
+
+#     texts = df["text"].tolist()
+#     metadatas = df[["icd_code", "description_es", "description_en", "description_es_normalized"]].to_dict(orient="records")
+
+#     try:
+#         embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
+#         chroma_db = Chroma.from_texts(
+#             texts=texts,
+#             embedding=embeddings,
+#             metadatas=metadatas,
+#             persist_directory=str(index_dir),
+#         )
+
+#         return chroma_db
+#     except Exception as e:
+#         raise ValueError("Failed to create Chroma DB: ", e)
+
+
+# def get_chroma_db(index_path: str = "snomed_terminology_vector_db") -> Chroma:
+#     """
+#     Get Chroma vector database for ICD data, creating it if it doesn't exist.
+
+#     Provides access to the vector database used for diagnosis normalization,
+#     initializing a new database if one doesn't exist at the specified path.
+
+#     Args:
+#         index_path: Directory path where the database is stored
+
+#     Returns:
+#         Chroma database object, or None if creation fails
+#     """
+#     index_dir = Path(index_path)
+#     try:
+#         if model_installed(EMBEDDINGS_MODEL):
+#             if not index_dir.exists():
+#                 chromadb = _create_chroma_db(index_path)
+#             else:
+#                 embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
+#                 chromadb = Chroma(persist_directory=str(
+#                     index_dir), embedding_function=embeddings)
+#             return chromadb
+#     except Exception as e:
+#         print(f"{color_text('ERROR', 'red')}", e)
+#         exit(1)

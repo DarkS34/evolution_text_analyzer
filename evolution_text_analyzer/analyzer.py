@@ -108,9 +108,9 @@ def evolution_text_analysis(
     summarizer = EvolutionTextSummarizer(model)
 
     diagnosis_prompt = PromptTemplate.from_template(
-        prompts["diagnostic_prompt"])
+        prompts["gen_diagnostic_prompt"])
 
-    parser = CustomParser(model, norm_mode, prompts["parser_icd_code_prompt"])
+    parser = CustomParser(model, norm_mode, prompts["gen_icd_code_prompt"])
 
     # Diagnosis chain
     diagnosis_chain = diagnosis_prompt | model | parser
