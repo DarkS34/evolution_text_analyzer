@@ -7,6 +7,8 @@ import unicodedata
 import re
 from rapidfuzz import fuzz
 
+from .auxiliary_functions import get_exclusion_terms
+
 
 # Dictionary of diagnostic abbreviations and their expanded forms
 EXTENDED_DIAGNOSTICS: dict[str, str] = {
@@ -43,13 +45,6 @@ EXTENDED_DIAGNOSTICS: dict[str, str] = {
     "Artritis goutosa": "Gota",
     "Gouto crónico": "Gota"
 }
-
-
-# List of common terms to exclude when comparing diagnoses
-EXCLUSION_TERMS: list[str] = [
-    "con", "y", "de", "del", "la", "el", "en", "por", "sin", "a", "para",
-    "debido", "asociado", "secundario", "primario", "crónico", "agudo"
-]
 
 # Threshold for similarity scores to consider diagnoses as matching
 SIMILARITY_THRESHOLD: float = 70.0
@@ -109,7 +104,7 @@ def tokenize_diagnosis(diagnosis: str) -> list[str]:
     tokens = diagnosis.split()
 
     # Remove exclusion terms
-    return [token for token in tokens if token not in EXCLUSION_TERMS]
+    return [token for token in tokens if token not in get_exclusion_terms()]
 
 
 def get_key_terms(diagnosis: str) -> list[str]:

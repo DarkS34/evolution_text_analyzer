@@ -46,6 +46,24 @@ def color_text(text, color="green"):
     return f"{colors.get(color, '')}[{text}]\033[0m"
 
 
+def get_exclusion_terms() -> list[str]:
+    return [
+        # Spanish terms
+        "con", "y", "de", "del", "la", "el", "en", "por", "sin", "a", "para",
+        "debido", "asociado", "secundario", "primario", "crónico", "agudo",
+        "al", "ambos", "ante", "cada", "como", "desde", "ella", "hasta",
+        "las", "lo", "los", "que", "se", "según", "sí", "sobre", "su",
+        "un", "una", "unas", "uno", "unos",
+
+        # English terms
+        "with", "and", "of", "the", "in", "by", "without", "to", "for",
+        "due", "associated", "secondary", "primary", "chronic", "acute",
+        "at", "both", "before", "each", "as", "from", "she", "until",
+        "them", "it", "they", "that", "is", "according", "yes", "on", "his", "her", "its", "their",
+        "a", "an", "some", "one", "ones"
+    ]
+
+
 def check_ollama_connection(url: str = "http://localhost:11434") -> None:
     """
     Verify that Ollama server is running and accessible.
@@ -337,6 +355,7 @@ def model_installed(model_name: str) -> bool:
         return True
     else:
         return _download_model(model_name)
+
 
 def _get_model_info(model_name: str) -> ModelInfo:
     """
