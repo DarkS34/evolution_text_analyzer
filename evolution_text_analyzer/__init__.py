@@ -7,7 +7,7 @@ and generating principal diagnoses with their corresponding ICD codes.
 
 Main features:
 - Analysis of medical texts to extract diagnoses
-- Normalization of diagnoses using RAG
+- Normalization of diagnoses using a SNOMED based dataset.
 - Comparative evaluation of LLM models
 - Visualization of results
 

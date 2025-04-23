@@ -1,8 +1,3 @@
-"""
-Custom parser module for medical diagnostic analysis.
-This module provides classes for parsing and normalizing medical diagnoses
-using language models, with optional RAG-based normalization capabilities.
-"""
 import re
 
 import pandas as pd

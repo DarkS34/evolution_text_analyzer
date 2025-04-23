@@ -23,10 +23,6 @@ from pydantic import BaseModel, ByteSize
 
 from .data_models import ModelInfo
 
-# EMBEDDINGS_MODEL = "kronos483/MedEmbed-large-v0.1"
-# RAG_DATASET = "snomed_description_icd_normalized.csv"
-
-
 def color_text(text, color="green"):
     """
     Format text with ANSI color codes for terminal output.
@@ -250,7 +246,7 @@ def get_args():
         "-N", "--normalize",
         action="store_true",
         dest="normalization_mode",
-        help="Normalize results using RAG"
+        help="Normalize results using SNOMED dataset"
     )
 
     return parser.parse_args()
@@ -639,82 +635,3 @@ def print_execution_progression(
         end="",
         flush=True,
     )
-
-# def _create_chroma_db(index_path: str) -> bool:
-#     """
-#     Create a new Chroma vector database for ICD data.
-
-#     Builds and initializes a vector database for medical diagnosis normalization
-#     using embeddings from the specified model.
-
-#     Args:
-#         index_path: Directory path where the database will be stored
-
-#     Returns:
-#         Chroma database object if successful
-
-#     Raises:
-#         ValueError: If database creation fails
-#     """
-#     index_dir = Path(index_path)
-#     csv_path: str = RAG_DATASET
-
-#     print(
-#         f"\r{color_text('INFO')} Chroma database not found. Creating new one from {csv_path}...",
-#         end="",
-#     )
-
-#     # Load CSV and fill missing values with empty strings
-#     df = pd.read_csv(csv_path, sep="\t").fillna("")
-
-#     # Build the text to embed
-#     df["text"] = (
-#         df["icd_code"].astype(str) + ": " +
-#         df["description_es"].astype(str) + ", " +
-#         df["description_en"].astype(str) + ", " +
-#         df["description_es_normalized"].astype(str)
-#     )
-
-#     texts = df["text"].tolist()
-#     metadatas = df[["icd_code", "description_es", "description_en", "description_es_normalized"]].to_dict(orient="records")
-
-#     try:
-#         embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
-#         chroma_db = Chroma.from_texts(
-#             texts=texts,
-#             embedding=embeddings,
-#             metadatas=metadatas,
-#             persist_directory=str(index_dir),
-#         )
-
-#         return chroma_db
-#     except Exception as e:
-#         raise ValueError("Failed to create Chroma DB: ", e)
-
-
-# def get_chroma_db(index_path: str = "snomed_terminology_vector_db") -> Chroma:
-#     """
-#     Get Chroma vector database for ICD data, creating it if it doesn't exist.
-
-#     Provides access to the vector database used for diagnosis normalization,
-#     initializing a new database if one doesn't exist at the specified path.
-
-#     Args:
-#         index_path: Directory path where the database is stored
-
-#     Returns:
-#         Chroma database object, or None if creation fails
-#     """
-#     index_dir = Path(index_path)
-#     try:
-#         if model_installed(EMBEDDINGS_MODEL):
-#             if not index_dir.exists():
-#                 chromadb = _create_chroma_db(index_path)
-#             else:
-#                 embeddings = OllamaEmbeddings(model=EMBEDDINGS_MODEL)
-#                 chromadb = Chroma(persist_directory=str(
-#                     index_dir), embedding_function=embeddings)
-#             return chromadb
-#     except Exception as e:
-#         print(f"{color_text('ERROR', 'red')}", e)
-#         exit(1)

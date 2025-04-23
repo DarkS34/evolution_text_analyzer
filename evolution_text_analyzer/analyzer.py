@@ -1,8 +1,3 @@
-"""
-Medical text analysis module for diagnostic extraction.
-This module contains functions to analyze medical evolution texts and extract 
-principal diagnoses and ICD codes using language models.
-"""
 from langchain.prompts import PromptTemplate
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_core.output_parsers import StrOutputParser
@@ -39,7 +34,7 @@ class EvolutionTextSummarizer:
         self.text_splitter = CharacterTextSplitter(
             chunk_size=int(MAX_EVOLUTION_TEXT_TOKENS * 0.6),
             chunk_overlap=int(MAX_EVOLUTION_TEXT_TOKENS * overlap_ratio),
-            separator=[".", ";", ",", " "],
+            separator=".",
             length_function=model.get_num_tokens,
         )
 
@@ -60,21 +55,26 @@ class EvolutionTextSummarizer:
             end_idx = min((i + 1) * word_chunk, total_words)
 
             block_text = ' '.join(words[start_idx:end_idx])
-
+            
+            partial_token_count = 0
             try:
                 partial_token_count = self.model.get_num_tokens(block_text)
+                # Asegurarse de que sea un entero
+                if isinstance(partial_token_count, list):
+                    # Si es una lista, tomar el primer elemento o la suma
+                    partial_token_count = partial_token_count[0] if partial_token_count else 0
+                total_token_count += int(partial_token_count)
+            except Exception as e:
+                print(f"Error al calcular tokens: {e}")
+                partial_token_count = int((end_idx - start_idx) * tokens_per_word)
                 total_token_count += partial_token_count
-            except Exception:
-                partial_token_count = int(
-                    (end_idx - start_idx) * tokens_per_word)
-                total_token_count += partial_token_count
-
+        
         return total_token_count > MAX_EVOLUTION_TEXT_TOKENS
 
     def summarize_text(self, text: str) -> str:
         """Summarize long text by chunking and recursive summarization."""
+        
         chunks = self.text_splitter.split_text(text)
-
         summaries = []
         for i, chunk in enumerate(chunks, 1):
             try:
@@ -83,7 +83,7 @@ class EvolutionTextSummarizer:
             except Exception as e:
                 raise ValueError(e)
 
-        combined_summary = "".join(summaries)
+        combined_summary = " ".join(summaries)
 
         if self.needs_summarization(combined_summary):
             return self.summarize_text(combined_summary)
@@ -122,7 +122,7 @@ def evolution_text_analysis(
             processed_text = evolution_text
             if summarizer.needs_summarization(evolution_text):
                 processed_text = summarizer.summarize_text(evolution_text)
-
+                print(processed_text)
             return diagnosis_chain.invoke({"evolution_text": processed_text})
         except Exception as e:
             return {

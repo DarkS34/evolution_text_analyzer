@@ -1,7 +1,3 @@
-"""
-Enhanced results management module for medical diagnostic analysis.
-Provides improved result handling for multi-model evaluations.
-"""
 from evolution_text_analyzer.auxiliary_functions import color_text
 from .data_models import EvaluationResult
 import matplotlib.pyplot as plt
@@ -16,16 +12,8 @@ matplotlib.use('Agg')
 
 
 class ResultsManager:
-    """Manages the storage, organization and visualization of model evaluation results."""
 
     def __init__(self, base_results_dir: Path, single_model_mode: bool):
-        """
-        Initialize the results manager.
-
-        Args:
-            base_results_dir: Base directory for storing results
-            single_model_mode: Whether the system is running in single model mode
-        """
         self.base_dir = base_results_dir
         self.single_model_mode = single_model_mode
         self.results_dir = self._create_timestamped_results_dir()
@@ -42,12 +30,6 @@ class ResultsManager:
         return results_dir
 
     def add_result(self, result: EvaluationResult) -> None:
-        """
-        Add a model evaluation result and update the summary.
-
-        Args:
-            result: The evaluation result to add
-        """
         # Add to detailed results
         self.detailed_results.append(result)
 
@@ -81,12 +63,6 @@ class ResultsManager:
             self._write_summary()
 
     def _write_individual_result(self, result: EvaluationResult) -> None:
-        """
-        Write an individual model result to its own file.
-
-        Args:
-            result: The evaluation result to write
-        """
 
         model_name = result.model_info.model_name.replace(
             ":", "-").replace("_", "-").replace(".", "")
@@ -106,7 +82,6 @@ class ResultsManager:
                       f, indent=2, ensure_ascii=False)
 
     def _write_summary(self) -> None:
-        """Write the summary data to a JSON file and generate visualizations."""
         # Sort by accuracy (descending)
         sorted_summary = sorted(
             self.summary_data, key=lambda x: x["accuracy"], reverse=True)
@@ -123,12 +98,6 @@ class ResultsManager:
             self._generate_visualizations(df)
 
     def _generate_visualizations(self, df: pd.DataFrame) -> None:
-        """
-        Generate visualization charts for model comparison.
-
-        Args:
-            df: DataFrame containing the summary data
-        """
         if self.single_model_mode:
             viz_dir = self.results_dir
         else:
@@ -180,12 +149,6 @@ class ResultsManager:
         plt.close()
 
     def get_best_model(self) -> Optional[Dict]:
-        """
-        Get the best performing model based on accuracy.
-
-        Returns:
-            Dictionary with the best model information or None if no models
-        """
         if not self.summary_data:
             return None
 
@@ -195,12 +158,6 @@ class ResultsManager:
         return sorted_models[0]
 
     def generate_comprehensive_report(self) -> None:
-        """
-        Generate a comprehensive text report of the evaluation results.
-
-        Returns:
-            Path to the generated report file
-        """
         report_path = self.results_dir / "evaluation_report.txt"
 
         with open(report_path, "w", encoding="utf-8") as f:
