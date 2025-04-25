@@ -51,7 +51,6 @@ class EvolutionTextSummarizer:
                 partial_token_count = int(
                     (end_idx - start_idx) * tokens_per_word)
                 evolution_text_token_count += partial_token_count
-
         return evolution_text_token_count > (self.context_window - 400)
 
     def summarize_text(self, text: str) -> str:
