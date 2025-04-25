@@ -1,76 +1,104 @@
+import os
+
 from langchain.prompts import PromptTemplate
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_ollama.llms import OllamaLLM
+from pydantic import BaseModel, Field
 
 from ._custom_parser import CustomParser
 from .auxiliary_functions import print_execution_progression
 
 
-class EvolutionTextSummarizer:
-    """Handles text summarization for long medical evolution texts."""
+class SummarizerConfig(BaseModel):
 
-    def __init__(self, model: OllamaLLM, summary_prompt:str, context_window: int):
+    chunk_size: int = Field(
+        default=1024, description="Size of each chunk in characters")
+    chunk_overlap: int = Field(
+        default=128, description="Overlap between chunks")
+    separator: str = Field(
+        default=".", description="Text separator for chunks")
+    tokens_per_word: float = Field(
+        default=1.3, description="Estimated tokens per word")
+    safety_margin: int = Field(
+        default=400, description="Safety margin for context window")
+
+
+class EvolutionTextSummarizer:
+    def __init__(
+        self,
+        model: any,
+        summary_prompt: str,
+        context_window: int,
+    ):
+
         self.model = model
-        self.text_splitter = CharacterTextSplitter(
-            chunk_size=1024,
-            chunk_overlap=128,
-            separator=".",
-            length_function=model.get_num_tokens,
-        )
-        self.summary_chain = PromptTemplate.from_template(summary_prompt) | self.model | StrOutputParser()
         self.context_window = context_window
+        self.config = SummarizerConfig()
+
+        # Determine the token counting function
+        self.token_counter = getattr(model, 'get_num_tokens', None)
+        if not self.token_counter:
+            # Fallback to simple estimation if no token counter is available
+            self.token_counter = lambda text: int(
+                len(text.split()) * self.config.tokens_per_word)
+
+        # Configure the text splitter
+        self.text_splitter = CharacterTextSplitter(
+            chunk_size=self.config.chunk_size,
+            chunk_overlap=self.config.chunk_overlap,
+            separator=self.config.separator,
+            length_function=self.token_counter,
+        )
+
+        # Configure the summarization chain
+        self.summary_chain = PromptTemplate.from_template(
+            summary_prompt) | self.model | StrOutputParser()
 
     def needs_summarization(self, text: str) -> bool:
-        """Check if text needs summarization based on token count."""
-        tokens_per_word = 4
-        word_chunk = int(1024 / tokens_per_word)
+        try:
+            os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+            token_count = self.token_counter(text)
+            return token_count > (self.context_window - self.config.safety_margin)
+        except Exception as _:
+            words = len(text.split())
+            estimated_tokens = int(words * self.config.tokens_per_word)
+            return estimated_tokens > (self.context_window - self.config.safety_margin)
 
-        words = text.split()
-        total_words = len(words)
-        num_blocks = (total_words + (word_chunk-1)) // word_chunk
-        evolution_text_token_count = 0
+    def summarize_text(self, text: str, max_recursion: int = 3, current_depth: int = 0) -> str:
+        if current_depth >= max_recursion:
+            return text
 
-        for i in range(num_blocks):
-            start_idx = i * word_chunk
-            end_idx = min((i + 1) * word_chunk, total_words)
+        if not self.needs_summarization(text):
+            return text
 
-            block_text = ' '.join(words[start_idx:end_idx])
+        try:
+            chunks = self.text_splitter.split_text(text)
 
-            partial_token_count = 0
-            try:
-                partial_token_count = self.model.get_num_tokens(block_text)
-                # Asegurarse de que sea un entero
-                if isinstance(partial_token_count, list):
-                    # Si es una lista, tomar el primer elemento o la suma
-                    partial_token_count = partial_token_count[0] if partial_token_count else 0
-                evolution_text_token_count += int(partial_token_count)
-            except Exception as e:
-                print(f"Error al calcular tokens: {e}")
-                partial_token_count = int(
-                    (end_idx - start_idx) * tokens_per_word)
-                evolution_text_token_count += partial_token_count
-        return evolution_text_token_count > (self.context_window - 400)
+            summaries: list[str] = []
+            for i, chunk in enumerate(chunks, 1):
+                try:
+                    summary = self.summary_chain.invoke({"chunk": chunk})
+                    summaries.append(summary)
+                except Exception as _:
+                    # Include a simple fallback if summarization failed
+                    summaries.append(chunk)
 
-    def summarize_text(self, text: str) -> str:
-        """Summarize long text by chunking and recursive summarization."""
+            combined_summary = " ".join(summaries)
 
-        chunks = self.text_splitter.split_text(text)
-        summaries = []
-        for i, chunk in enumerate(chunks, 1):
-            try:
-                summary = self.summary_chain.invoke({"chunk": chunk})
-                summaries.append(summary)
-            except Exception as e:
-                raise ValueError(e)
+            # Check if more summarization is needed
+            if self.needs_summarization(combined_summary):
+                return self.summarize_text(
+                    combined_summary,
+                    max_recursion=max_recursion,
+                    current_depth=current_depth + 1
+                )
 
-        combined_summary = " ".join(summaries)
+            return combined_summary
 
-        if self.needs_summarization(combined_summary):
-            return self.summarize_text(combined_summary)
-
-        return combined_summary
+        except Exception as e:
+            raise ValueError(f"Error summarizing text: {str(e)}")
 
 
 def evolution_text_analysis(
@@ -81,13 +109,16 @@ def evolution_text_analysis(
     evolution_texts: list[dict],
     num_batches: int,
     total_evolution_texts_to_process: int,
+    test_mode: bool = False,
 ):
     model = OllamaLLM(
         model=model_name,
         temperature=0,
         num_ctx=context_window_tokens
     )
-    summarizer = EvolutionTextSummarizer(model, prompts["gen_summary_prompt"], context_window_tokens)
+
+    summarizer = EvolutionTextSummarizer(
+        model, prompts["gen_summary_prompt"], context_window_tokens)
 
     diagnosis_prompt = PromptTemplate.from_template(
         prompts["gen_diagnostic_prompt"])
@@ -104,7 +135,8 @@ def evolution_text_analysis(
             processed_text = evolution_text
             if summarizer.needs_summarization(evolution_text):
                 processed_text = summarizer.summarize_text(evolution_text)
-            parsed_result:dict = diagnosis_chain.invoke({"evolution_text": processed_text})
+            parsed_result: dict = diagnosis_chain.invoke(
+                {"evolution_text": processed_text})
             return parsed_result
         except Exception as e:
             return {

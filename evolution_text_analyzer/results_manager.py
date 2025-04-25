@@ -23,9 +23,9 @@ class ResultsManager:
     def _create_timestamped_results_dir(self) -> Path:
         """Create a timestamped directory for the current evaluation run."""
 
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = datetime.now().strftime("%H%M%S%d%m%Y")
         results_dir = self.base_dir / \
-            f"{'individual_' if self.single_model_mode else ''}evaluation_run_{timestamp}"
+            f"{timestamp}_{'individual_' if self.single_model_mode else ''}evaluation_run"
         results_dir.mkdir(parents=True, exist_ok=True)
         return results_dir
 
@@ -65,7 +65,7 @@ class ResultsManager:
     def _write_individual_result(self, result: EvaluationResult) -> None:
 
         model_name = result.model_info.model_name.replace(
-            ":", "-").replace("_", "-").replace(".", "")
+            ":", "-").replace("_", "-").replace(".", "-")
         normalized_tag = "_N" if result.performance.normalized else ""
 
         # Change saving strategy if execute just for one model
@@ -192,6 +192,6 @@ class ResultsManager:
                         f"{model['model_name']:<30} {model['accuracy']:<10.2f} {model['incorrect_outputs']:<10.2f} {model['errors']:<10.2f} {model['duration']:<10.2f}\n")
             else:
                 f.write("No models evaluated.\n")
-                
+
         print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
         print(f"\r{color_text('COMPLETED')} Processing finished")

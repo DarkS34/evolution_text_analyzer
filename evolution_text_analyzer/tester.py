@@ -95,6 +95,7 @@ def evaluate_model(
         evolution_texts,
         args.num_batches,
         args.num_texts,
+        True
     )
     end = time.time()
 
@@ -131,7 +132,7 @@ def evaluate_analysis(
     results_manager = ResultsManager(testing_results_dir, args.eval_mode == 2)
 
     # Multiple models evaluation
-    if args.eval_mode == 1:
+    if args.eval_mode == 1 and len(models) > 1:
         models = get_listed_models_info(
             models, args.only_installed_models_mode)
         for i, model_info in enumerate(models):
@@ -143,7 +144,7 @@ def evaluate_analysis(
         results_manager.generate_comprehensive_report()
 
     # Single model evaluation
-    elif args.eval_mode == 2:
+    elif args.eval_mode == 2 or len(models) == 1:
         model_info = choose_model(models, args.only_installed_models_mode)
         evaluation_result = evaluate_model(
             model_info, prompts, evolution_texts, args)
