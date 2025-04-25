@@ -45,16 +45,16 @@ def run_analysis_mode(model: str, prompts: dict, args) -> None:
     results_dir = config_file.parent / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
     
-    ctx_len = get_context_window_length(model)
+    num_ctx = get_context_window_length(model, args.context_window_tokens)
 
     results = evolution_text_analysis(
         model,
         prompts,
-        ctx_len,
+        num_ctx,
         evolution_texts,
         args.num_batches,
         args.num_texts,
-        args.normalization_mode
+        args.normalization_mode,
     )
 
     write_results(results_dir / "processed_evolution_texts.json", results)

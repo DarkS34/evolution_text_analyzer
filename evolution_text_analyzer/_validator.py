@@ -69,7 +69,7 @@ def normalize_name(name: str) -> str:
     """
     if name is None:
         return ""
-
+    
     # 1. Expand known abbreviations
     expanded_name = EXTENDED_DIAGNOSTICS.get(name.strip(), name)
 

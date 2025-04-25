@@ -1,15 +1,3 @@
-"""
-Auxiliary functions module for the medical diagnostic analysis system.
-
-This module provides utility functions for various system components including:
-- Configuration loading and validation
-- Command-line argument parsing
-- File I/O operations
-- Model management and selection
-- Progress reporting and visualization
-- Vector database operations
-"""
-
 import json
 import os
 from argparse import ArgumentParser
@@ -24,16 +12,6 @@ from pydantic import BaseModel, ByteSize
 from .data_models import ModelInfo
 
 def color_text(text, color="green"):
-    """
-    Format text with ANSI color codes for terminal output.
-
-    Args:
-        text: The text to be colored
-        color: Color name (red, green, cyan)
-
-    Returns:
-        String formatted with ANSI color codes
-    """
     colors = {
         "red": "\033[91m",
         "green": "\033[92m",
@@ -61,18 +39,6 @@ def get_exclusion_terms() -> list[str]:
 
 
 def check_ollama_connection(url: str = "http://localhost:11434") -> None:
-    """
-    Verify that Ollama server is running and accessible.
-
-    Attempts to connect to the Ollama API endpoint and exits the application
-    with an error message if the connection fails.
-
-    Args:
-        url: URL of the Ollama server to check
-
-    Raises:
-        SystemExit: If connection to Ollama server fails
-    """
     try:
         if not requests.get(url).status_code == 200:
             print(
@@ -84,16 +50,7 @@ def check_ollama_connection(url: str = "http://localhost:11434") -> None:
         exit(1)
 
 
-def get_context_window_length(model_name: str) -> int:
-    """
-    Get raw model information directly using CLI command.
-
-    Args:
-        model_name: Name of the Ollama model
-
-    Returns:
-        Raw output from the 'ollama show' command
-    """
+def get_context_window_length(model_name: str, desired_context_window:int) -> int:
     try:
         result = subprocess.run(
             ["ollama", "show", model_name],
@@ -104,7 +61,8 @@ def get_context_window_length(model_name: str) -> int:
         for line in result.stdout.split('\n'):
             line = line.strip()
             if "context length" in line.lower():
-                return int(line.split()[-1])
+                max_context_window = int(line.split()[-1])
+                return desired_context_window if desired_context_window <= max_context_window else max_context_window
         return -1
     except subprocess.CalledProcessError as e:
         print(f"Error running ollama show: {e}")
@@ -115,22 +73,6 @@ def get_context_window_length(model_name: str) -> int:
 
 
 def get_analyzer_configuration(path: Path):
-    """
-    Load and validate analyzer configuration from JSON file.
-
-    Reads the configuration file and verifies that all required fields
-    and prompts are present with appropriate values.
-
-    Args:
-        path: Path to the configuration file
-
-    Returns:
-        Dictionary containing validated analyzer configuration
-
-    Raises:
-        FileNotFoundError: If the file doesn't exist
-        ValueError: If JSON format is invalid or required fields are missing
-    """
     if not path.exists():
         raise FileNotFoundError(f"File '{path}' not found")
 
@@ -156,6 +98,7 @@ def get_analyzer_configuration(path: Path):
 
     # Verify required prompts in the new structure
     required_prompts = [
+        "gen_summary_prompt",
         "gen_diagnostic_prompt",
         "gen_icd_code_prompt"
     ]
@@ -182,15 +125,6 @@ def get_analyzer_configuration(path: Path):
 
 
 def get_args():
-    """
-    Parse command line arguments for the application.
-
-    Defines and processes all command line options for controlling the system's
-    behavior, including operation mode, batch size, and processing flags.
-
-    Returns:
-        Parsed command line arguments object
-    """
     parser = ArgumentParser(
         description="Medical evolution text analyzer with multiple operation modes.",
         allow_abbrev=False
@@ -225,6 +159,13 @@ def get_args():
         help="Number of texts to process"
     )
     parser.add_argument(
+        "-W", "--context-window",
+        type=int,
+        default=3072,
+        dest="context_window_tokens",
+        help="Normalize results using SNOMED dataset"
+    )
+    parser.add_argument(
         "-t", "--test",
         action="store_true",
         dest="test_mode",
@@ -249,26 +190,11 @@ def get_args():
         help="Normalize results using SNOMED dataset"
     )
 
+
     return parser.parse_args()
 
 
 def get_evolution_texts(path: Path):
-    """
-    Load evolution texts from CSV or JSON file.
-
-    Reads medical evolution texts from a file and prepares them for processing,
-    performing basic validation on the required fields.
-
-    Args:
-        path: Path to the file containing evolution texts
-
-    Returns:
-        List of dictionaries containing validated evolution texts
-
-    Raises:
-        FileNotFoundError: If the file doesn't exist
-        ValueError: If file format is unsupported or required fields are missing
-    """
     if not path.exists():
         raise FileNotFoundError(f"File '{path}' not found")
 
@@ -302,21 +228,6 @@ def get_evolution_texts(path: Path):
 
 
 def get_installed_models(with_info: bool = False):
-    """
-    Get list of models installed in Ollama.
-
-    Retrieves either model names or full model information from
-    the local Ollama installation.
-
-    Args:
-        with_info: If True, return full model information, otherwise just names
-
-    Returns:
-        List of model names or model information dictionaries
-
-    Raises:
-        SystemExit: If Ollama API request fails
-    """
     try:
         if with_info:
             installed_models = [
@@ -335,18 +246,6 @@ def get_installed_models(with_info: bool = False):
 
 
 def model_installed(model_name: str) -> bool:
-    """
-    Check if a model is installed and download it if not.
-
-    Verifies if the specified model is available locally in Ollama,
-    and attempts to download it if not present.
-
-    Args:
-        model_name: Name of the model to check
-
-    Returns:
-        True if model is installed or successfully downloaded, False otherwise
-    """
     if model_name in get_installed_models():
         return True
     else:
@@ -354,18 +253,6 @@ def model_installed(model_name: str) -> bool:
 
 
 def _get_model_info(model_name: str) -> ModelInfo:
-    """
-    Get detailed information about a specific model.
-
-    Retrieves and formats information about an Ollama model including
-    its size, parameters, and quantization level.
-
-    Args:
-        model_name: Name of the model to get information for
-
-    Returns:
-        ModelInfo object with model details
-    """
     installed_model_info = next(
         (
             installed_model_name
@@ -399,22 +286,6 @@ def _get_model_info(model_name: str) -> ModelInfo:
 def get_listed_models_info(
     listed_model_names: list[str], installed_only: bool = False
 ) -> list[ModelInfo]:
-    """
-    Get information about multiple models from a list.
-
-    Retrieves detailed information about multiple models, optionally
-    filtering to only include models that are already installed.
-
-    Args:
-        listed_model_names: List of model names to get information for
-        installed_only: If True, only return information for installed models
-
-    Returns:
-        List of ModelInfo objects with model details
-
-    Raises:
-        SystemExit: If no models are found in the list
-    """
     if not listed_model_names:
         print(f"{color_text('ERROR', 'red')} No models found in config list")
         exit(1)
@@ -429,18 +300,6 @@ def get_listed_models_info(
 
 
 def _download_model(model_name: str) -> bool:
-    """
-    Download a model from Ollama's model repository.
-
-    Pulls the specified model from Ollama with a progress indicator,
-    handling errors if the download fails.
-
-    Args:
-        model_name: Name of the model to download
-
-    Returns:
-        True if download successful, False otherwise
-    """
     try:
         download_progress = ollama.pull(model_name, stream=True)
         total = 0
@@ -467,15 +326,6 @@ def _download_model(model_name: str) -> bool:
 
 
 def _display_models_table(models: list[ModelInfo]) -> None:
-    """
-    Display a formatted table of model information.
-
-    Creates a nicely formatted table showing model details including
-    availability status, size, parameters, and quantization level.
-
-    Args:
-        models: List of ModelInfo objects to display
-    """
     col_widths = {
         "name": max(len(model.model_name) for model in models) + 4,
         "available": len("Not installed") + 4,
@@ -510,22 +360,6 @@ def _display_models_table(models: list[ModelInfo]) -> None:
 
 
 def choose_model(model_names: list[str], installed_only: bool = False) -> list[ModelInfo] | None:
-    """
-    Display available models and let the user choose one.
-
-    Presents a list of models with details and prompts the user to select one,
-    handling the download process if necessary.
-
-    Args:
-        model_names: List of model names to choose from
-        installed_only: If True, only show models that are already installed
-
-    Returns:
-        List containing the selected ModelInfo object, or None if selection fails
-
-    Raises:
-        SystemExit: If no models are available to choose from
-    """
     listed = get_listed_models_info(model_names, installed_only)
     if not listed:
         print(f"{color_text('ERROR', 'red')} No models available to choose from.")
@@ -545,17 +379,6 @@ def choose_model(model_names: list[str], installed_only: bool = False) -> list[M
 
 
 def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> None:
-    """
-    Print evaluation results for a model.
-
-    Displays model performance metrics and optionally detailed results
-    for individual texts if verbose mode is enabled.
-
-    Args:
-        model: Dictionary containing model information
-        results: Evaluation results as a BaseModel
-        verbose: If True, print detailed results for each text
-    """
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
     if verbose:
         for id, evaluated_text in results.evaluated_texts.items():
@@ -594,16 +417,6 @@ def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> N
 
 
 def write_results(results_path: str, results: dict) -> None:
-    """
-    Write analysis results to a JSON file.
-
-    Saves processed diagnostic results to a JSON file at the specified path,
-    with appropriate formatting for readability.
-
-    Args:
-        results_path: Path to write the results to
-        results: Dictionary containing analysis results
-    """
     with open(results_path, mode="w", encoding="utf-8") as file:
         json.dump(results, file, indent=3, ensure_ascii=False)
 
@@ -617,17 +430,6 @@ def print_execution_progression(
     processed_texts: int,
     total_texts: int,
 ) -> None:
-    """
-    Print the progress of text processing in the terminal.
-
-    Displays a progress indicator showing how many texts have been processed
-    out of the total, providing real-time feedback during execution.
-
-    Args:
-        model_name: Name of the model being used
-        processed_texts: Number of texts processed so far
-        total_texts: Total number of texts to process
-    """
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
 
     print(

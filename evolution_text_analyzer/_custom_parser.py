@@ -46,11 +46,25 @@ class CustomParser(BaseOutputParser):
                         "principal_diagnostic": match_row.get('description_es_normalized', diagnostic)
                     }
 
-                # Partial match with filtered terms
-                partial_match_mask = processed_column.str.contains(diagnostic_filtered, regex=False)
-                partial_matches = self._snomed_df[partial_match_mask]
-                if not partial_matches.empty:
-                    match_row = partial_matches.iloc[0]
+            from rapidfuzz import fuzz
+            import numpy as np
+            
+            partial_match_mask = processed_column.str.contains(diagnostic_filtered, regex=False, na=False)
+            partial_matches_df = self._snomed_df[partial_match_mask]
+            
+            if not partial_matches_df.empty:
+                filtered_options = processed_column[partial_match_mask].tolist()
+                indices = np.where(partial_match_mask)[0].tolist()
+                
+                scores = []
+                for option in filtered_options:
+                    score = fuzz.token_sort_ratio(diagnostic_filtered, option)
+                    scores.append(score)
+                
+                if scores:
+                    best_idx = np.argmax(scores)
+                    match_idx = indices[best_idx]
+                    match_row = self._snomed_df.iloc[match_idx]
                     return {
                         "icd_code": match_row.get('icd_code', ''),
                         "principal_diagnostic": match_row.get('description_es_normalized', diagnostic)
