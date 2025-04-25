@@ -23,7 +23,7 @@ class ResultsManager:
     def _create_timestamped_results_dir(self) -> Path:
         """Create a timestamped directory for the current evaluation run."""
 
-        timestamp = datetime.now().strftime("%H%M%S%d%m%Y")
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         results_dir = self.base_dir / \
             f"{timestamp}_{'individual_' if self.single_model_mode else ''}evaluation_run"
         results_dir.mkdir(parents=True, exist_ok=True)

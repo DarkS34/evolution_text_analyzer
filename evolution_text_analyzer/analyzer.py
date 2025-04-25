@@ -5,24 +5,12 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_ollama.llms import OllamaLLM
-from pydantic import BaseModel, Field
+
+
+from .data_models import SummarizerConfig
 
 from ._custom_parser import CustomParser
 from .auxiliary_functions import print_execution_progression
-
-
-class SummarizerConfig(BaseModel):
-
-    chunk_size: int = Field(
-        default=1024, description="Size of each chunk in characters")
-    chunk_overlap: int = Field(
-        default=128, description="Overlap between chunks")
-    separator: str = Field(
-        default=".", description="Text separator for chunks")
-    tokens_per_word: float = Field(
-        default=1.3, description="Estimated tokens per word")
-    safety_margin: int = Field(
-        default=400, description="Safety margin for context window")
 
 
 class EvolutionTextSummarizer:
@@ -104,11 +92,11 @@ class EvolutionTextSummarizer:
 def evolution_text_analysis(
     model_name: str,
     prompts: dict[str],
-    norm_mode: bool,
     context_window_tokens: int,
     evolution_texts: list[dict],
     num_batches: int,
     total_evolution_texts_to_process: int,
+    norm_mode: bool,
     test_mode: bool = False,
 ):
     model = OllamaLLM(
@@ -133,15 +121,25 @@ def evolution_text_analysis(
     def process_evolution_text(evolution_text: str):
         try:
             processed_text = evolution_text
+            result = dict()
+
             if summarizer.needs_summarization(evolution_text):
                 processed_text = summarizer.summarize_text(evolution_text)
-            parsed_result: dict = diagnosis_chain.invoke(
-                {"evolution_text": processed_text})
-            return parsed_result
+                if test_mode:
+                    result.update({"summarized": True})
+            else:
+                if test_mode:
+                    result.update({"summarized": False})
+
+            result.update(diagnosis_chain.invoke(
+                {"evolution_text": processed_text}))
+
+            return result
         except Exception as e:
             return {
                 "principal_diagnostic": None,
                 "icd_code": None,
+                "summarized": False,
                 "processing_error": str(e),
             }
 
@@ -158,6 +156,7 @@ def evolution_text_analysis(
             model_name,
             len(processed_evolution_texts),
             total_evolution_texts_to_process,
+            test_mode
         )
 
         batch = evolution_texts[start: start + num_batches]

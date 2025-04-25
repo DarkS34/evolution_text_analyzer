@@ -41,6 +41,8 @@ class EvaluationOutput(BaseModel):
     valid: bool = Field(
         description="Whether the processed output matches the correct diagnosis"
     )
+    summarized: bool = Field(
+        description="Wheter the evolution text has been summarized prior of the processing")
     processed_output: DiagnosticResult = Field(
         description="The processed diagnostic result from the model"
     )
@@ -128,3 +130,16 @@ class EvaluationResult(BaseModel):
     evaluated_texts: Dict[str, EvaluationOutput] = Field(
         description="Detailed results for each processed text"
     )
+
+
+class SummarizerConfig(BaseModel):
+    chunk_size: int = Field(
+        default=1024, description="Size of each chunk in characters")
+    chunk_overlap: int = Field(
+        default=128, description="Overlap between chunks")
+    separator: str = Field(
+        default=".", description="Text separator for chunks")
+    tokens_per_word: float = Field(
+        default=1.3, description="Estimated tokens per word")
+    safety_margin: int = Field(
+        default=400, description="Safety margin for context window")

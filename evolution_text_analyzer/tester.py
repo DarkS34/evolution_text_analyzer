@@ -24,7 +24,7 @@ def process_text(processed: dict, expected: str) -> EvaluationOutput:
     try:
         if not processed.get("processing_error"):
             valid = validate_result(
-                processed["principal_diagnostic"], expected)
+                processed.get("principal_diagnostic"), expected)
         else:
             valid = False
         result = DiagnosticResult(
@@ -43,6 +43,7 @@ def process_text(processed: dict, expected: str) -> EvaluationOutput:
     return EvaluationOutput(
         valid=valid,
         processed_output=result,
+        summarized=processed.get("summarized"),
         correct_diagnostic=expected
     )
 
@@ -84,17 +85,18 @@ def evaluate_model(
     args: Namespace,
     date_format: str = "%H:%M:%S %d-%m-%Y"
 ) -> EvaluationResult:
-    ctx_len = get_context_window_length(model_info.model_name, args.context_window_tokens)
+    ctx_len = get_context_window_length(
+        model_info.model_name, args.context_window_tokens)
 
     start = time.time()
     processed = evolution_text_analysis(
         model_info.model_name,
         prompts,
-        args.normalization_mode,
         ctx_len,
         evolution_texts,
         args.num_batches,
         args.num_texts,
+        args.normalization_mode,
         True
     )
     end = time.time()

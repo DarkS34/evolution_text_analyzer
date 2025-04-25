@@ -421,7 +421,7 @@ def write_results(results_path: str, results: dict) -> None:
         json.dump(results, file, indent=3, ensure_ascii=False)
 
     print(
-        f"{color_text('COMPLETED')} Results available at:\n{results_path}", end="\n\n"
+        f"\r{color_text('COMPLETED')} Results available at:\n{results_path}", end="\n\n"
     )
 
 
@@ -429,11 +429,14 @@ def print_execution_progression(
     model_name: str,
     processed_texts: int,
     total_texts: int,
+    test_mode:bool,
 ) -> None:
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
 
+    activity_str = 'TESTING' if test_mode else 'PROCESSING'
+    
     print(
-        f"\r{color_text('PROCESSING')} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
+        f"\r{color_text(activity_str)} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
         end="",
         flush=True,
     )
