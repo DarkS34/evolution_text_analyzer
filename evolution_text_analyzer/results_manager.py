@@ -1,12 +1,10 @@
 from evolution_text_analyzer.auxiliary_functions import color_text
 from .data_models import EvaluationResult
-import matplotlib.pyplot as plt
 import json
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 import os
-import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 
@@ -23,7 +21,7 @@ class ResultsManager:
     def _create_timestamped_results_dir(self) -> Path:
         """Create a timestamped directory for the current evaluation run."""
 
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         results_dir = self.base_dir / \
             f"{timestamp}_{'individual_' if self.single_model_mode else ''}evaluation_run"
         results_dir.mkdir(parents=True, exist_ok=True)
@@ -80,73 +78,6 @@ class ResultsManager:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(result.model_dump(exclude_none=True),
                       f, indent=2, ensure_ascii=False)
-
-    def _write_summary(self) -> None:
-        # Sort by accuracy (descending)
-        sorted_summary = sorted(
-            self.summary_data, key=lambda x: x["accuracy"], reverse=True)
-
-        # Write JSON summary
-        summary_path = self.results_dir / "summary.json"
-        with open(summary_path, "w", encoding="utf-8") as f:
-            json.dump(sorted_summary, f, indent=2, ensure_ascii=False)
-
-        # Only generate visualizations when we have at least one result
-        if self.summary_data:
-            df = pd.DataFrame(sorted_summary)
-            # Generate visualizations
-            self._generate_visualizations(df)
-
-    def _generate_visualizations(self, df: pd.DataFrame) -> None:
-        if self.single_model_mode:
-            viz_dir = self.results_dir
-        else:
-            viz_dir = self.results_dir / "visualizations"
-            viz_dir.mkdir(parents=True, exist_ok=True)
-
-        # Performance comparison chart
-        plt.figure(figsize=(12, 8))
-        df_sorted = df.sort_values("accuracy", ascending=False)
-        if len(df_sorted) > 10:
-            df_sorted = df_sorted.head(10)
-
-        # Prepare data
-        models = df_sorted["model_name"]
-        accuracy = df_sorted["accuracy"]
-        incorrect = df_sorted["incorrect_outputs"]
-        errors = df_sorted["errors"]
-
-        x = range(len(models))
-        width = 0.25
-
-        plt.bar([i - width for i in x], accuracy,
-                width=width, label="Accuracy", color="green")
-        plt.bar(x, incorrect, width=width, label="Incorrect", color="red")
-        plt.bar([i + width for i in x], errors,
-                width=width, label="Errors", color="orange")
-
-        plt.xlabel("Models")
-        plt.ylabel("Percentage (%)")
-        plt.title("Model Performance Comparison")
-        plt.xticks(x, models, rotation=45, ha="right")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(viz_dir / "performance_comparison.png", dpi=300)
-        plt.close()
-
-        plt.figure(figsize=(12, 6))
-
-        df_time_sorted = df.sort_values("duration")
-
-        if len(df_time_sorted) > 10:
-            df_time_sorted = df_time_sorted.head(10)
-
-        plt.barh(df_time_sorted["model_name"], df_time_sorted["duration"])
-        plt.xlabel("Execution Time (seconds)")
-        plt.title("Model Execution Time Comparison")
-        plt.tight_layout()
-        plt.savefig(viz_dir / "execution_time_comparison.png", dpi=300)
-        plt.close()
 
     def get_best_model(self) -> Optional[Dict]:
         if not self.summary_data:

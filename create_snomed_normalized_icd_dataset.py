@@ -9,7 +9,7 @@ ICD_DATASET = "Diagnosticos_ES2024_TablaReferencia_30_06_2023_909624313045917965
 # Load and prepare mapping
 mapping_df = pd.read_csv(MAP_FILE, sep="\t")
 mapping_df = mapping_df[
-    mapping_df['mapTarget'].notna() & 
+    mapping_df['mapTarget'].notna() &
     (mapping_df['mapTarget'].str.strip() != '')
 ]
 mapping_df['mapTarget'] = mapping_df['mapTarget'].str.upper()
@@ -42,7 +42,8 @@ linked = pd.merge(
 )
 
 # Load the full official ICD-10 base
-icd_base = pd.read_excel(ICD_DATASET, sheet_name="ES2024 Finales", usecols="A:B")
+icd_base = pd.read_excel(
+    ICD_DATASET, sheet_name="ES2024 Finales", usecols="A:B")
 icd_base = icd_base.rename(columns={
     "Código": "icd_code",
     "Descripción": "description_es_normalized"
@@ -59,10 +60,15 @@ final_df = pd.merge(
 )
 
 # Select and order columns
-final_df = final_df[['icd_code', 'description_es', 'description_en', 'description_es_normalized']]
+final_df = final_df[['icd_code', 'description_es_normalized',
+                     'description_es', 'description_en']]
+
+# MODIFICACIÓN: Filtrar solo los códigos ICD que comienzan con 'M'
+final_df = final_df[final_df['icd_code'].str.startswith('M')]
 
 # Sort for clarity
 final_df = final_df.sort_values(by='icd_code')
 
 # Export to CSV
-final_df.to_csv("snomed_description_icd_normalized.csv", sep="\t", index=False, encoding="utf-8")
+final_df.to_csv("snomed_description_icd_normalized.csv",
+                sep="\t", index=False, encoding="utf-8")

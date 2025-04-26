@@ -6,11 +6,12 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_ollama.llms import OllamaLLM
 
-
-from .data_models import SummarizerConfig
-
 from ._custom_parser import CustomParser
 from .auxiliary_functions import print_execution_progression
+from .data_models import SummarizerConfig
+
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 class EvolutionTextSummarizer:
@@ -46,7 +47,6 @@ class EvolutionTextSummarizer:
 
     def needs_summarization(self, text: str) -> bool:
         try:
-            os.environ["TRANSFORMERS_VERBOSITY"] = "error"
             token_count = self.token_counter(text)
             return token_count > (self.context_window - self.config.safety_margin)
         except Exception as _:

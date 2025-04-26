@@ -40,10 +40,7 @@ EXTENDED_DIAGNOSTICS: dict[str, str] = {
     "Sind. de SJÖGREN": "Síndrome de Sjögren",
     "Autoinflamatorio": "Síndrome Autoinflamatorio",
     "FOP": "Fibrodisplasia Osificante Progresiva",
-    "Beçhet": "Enfermedad de Behçet",
-    "Artritis gotosa aguda": "Gota",
-    "Artritis goutosa": "Gota",
-    "Gouto crónico": "Gota"
+    "Beçhet": "Enfermedad de Behçet"
 }
 
 # Threshold for similarity scores to consider diagnoses as matching

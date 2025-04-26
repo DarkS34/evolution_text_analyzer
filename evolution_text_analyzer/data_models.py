@@ -142,4 +142,4 @@ class SummarizerConfig(BaseModel):
     tokens_per_word: float = Field(
         default=1.3, description="Estimated tokens per word")
     safety_margin: int = Field(
-        default=400, description="Safety margin for context window")
+        default=800, description="Safety margin for context window")

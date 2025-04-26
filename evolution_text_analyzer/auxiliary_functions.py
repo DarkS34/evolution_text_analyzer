@@ -24,7 +24,7 @@ def get_exclusion_terms() -> list[str]:
     return [
         # Spanish terms
         "con", "y", "de", "del", "la", "el", "en", "por", "sin", "a", "para",
-        "debido", "asociado", "secundario", "primario", "crónico", "agudo",
+        "debido", "asociado", "crónico", "agudo",
         "al", "ambos", "ante", "cada", "como", "desde", "ella", "hasta",
         "las", "lo", "los", "que", "se", "según", "sí", "sobre", "su",
         "un", "una", "unas", "uno", "unos",
