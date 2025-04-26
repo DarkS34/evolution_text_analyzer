@@ -20,7 +20,7 @@ from .data_models import (
 from .results_manager import ResultsManager
 
 
-def process_text(processed: dict, expected: str) -> EvaluationOutput:
+def _process_text(processed: dict, expected: str) -> EvaluationOutput:
     try:
         if not processed.get("processing_error"):
             valid = validate_result(
@@ -48,7 +48,7 @@ def process_text(processed: dict, expected: str) -> EvaluationOutput:
     )
 
 
-def calculate_metrics(
+def _calculate_metrics(
     evaluated: dict[str, EvaluationOutput],
     total_texts: int,
     num_batches: int,
@@ -102,11 +102,11 @@ def evaluate_model(
     end = time.time()
 
     evaluated = {
-        key: process_text(result, evolution_texts[i]["principal_diagnostic"])
+        key: _process_text(result, evolution_texts[i]["principal_diagnostic"])
         for i, (key, result) in enumerate(processed.items())
     }
 
-    metrics = calculate_metrics(
+    metrics = _calculate_metrics(
         evaluated,
         total_texts=args.num_texts,
         num_batches=args.num_batches,

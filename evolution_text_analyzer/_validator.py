@@ -42,7 +42,7 @@ EXTENDED_DIAGNOSTICS: dict[str, str] = {
 SIMILARITY_THRESHOLD: float = 70.0
 
 
-def normalize_name(name: str) -> str:
+def _normalize_name(name: str) -> str:
     if name is None:
         return ""
     
@@ -64,20 +64,20 @@ def normalize_name(name: str) -> str:
     return normalized
 
 
-def tokenize_diagnosis(diagnosis: str) -> list[str]:
+def _tokenize_diagnosis(diagnosis: str) -> list[str]:
     tokens = diagnosis.split()
 
     # Remove exclusion terms
     return [token for token in tokens if token not in get_exclusion_terms()]
 
 
-def get_key_terms(diagnosis: str) -> list[str]:
-    normalized = normalize_name(diagnosis)
+def _get_key_terms(diagnosis: str) -> list[str]:
+    normalized = _normalize_name(diagnosis)
 
-    return tokenize_diagnosis(normalized)
+    return _tokenize_diagnosis(normalized)
 
 
-def calculate_similarity_scores(processed: str, correct: str) -> tuple[float, float, float]:
+def _calculate_similarity_scores(processed: str, correct: str) -> tuple[float, float, float]:
     ratio = fuzz.ratio(processed, correct)
     partial_ratio = fuzz.partial_ratio(processed, correct)
     token_sort_ratio = fuzz.token_sort_ratio(processed, correct)
@@ -95,21 +95,21 @@ def validate_result(processed_diag: str, correct_diag: str) -> bool:
         return False
 
     # Normalize both diagnoses
-    processed_norm = normalize_name(processed_diag)
-    correct_norm = normalize_name(correct_diag)
+    processed_norm = _normalize_name(processed_diag)
+    correct_norm = _normalize_name(correct_diag)
 
     # 1. Direct match after normalization
     if processed_norm == correct_norm:
         return True
 
     # 2. Check if all key terms in correct diagnosis are in processed diagnosis
-    processed_terms = set(get_key_terms(processed_diag))
-    correct_terms = set(get_key_terms(correct_diag))
+    processed_terms = set(_get_key_terms(processed_diag))
+    correct_terms = set(_get_key_terms(correct_diag))
     if len(correct_terms) > 0 and correct_terms.issubset(processed_terms):
         return True
 
     # 3. Using fuzzy string matching with various similarity metrics
-    ratio, partial_ratio, token_sort_ratio = calculate_similarity_scores(
+    ratio, partial_ratio, token_sort_ratio = _calculate_similarity_scores(
         processed_norm, correct_norm)
     if max(ratio, token_sort_ratio) >= SIMILARITY_THRESHOLD:
         return True

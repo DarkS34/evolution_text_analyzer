@@ -72,7 +72,7 @@ class ResultsManager:
             json.dump(result.model_dump(exclude_none=True),
                       f, indent=2, ensure_ascii=False)
 
-    def get_best_model(self) -> Optional[Dict]:
+    def _get_best_model(self) -> Optional[Dict]:
         if not self.summary_data:
             return None
 
@@ -94,7 +94,7 @@ class ResultsManager:
             f.write("-" * 80 + "\n")
 
             if self.summary_data:
-                best_model = self.get_best_model()
+                best_model = self._get_best_model()
 
                 f.write(f"Total models evaluated: {len(self.summary_data)}\n")
                 f.write(
