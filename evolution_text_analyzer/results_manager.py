@@ -5,8 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 import os
-import matplotlib
-matplotlib.use('Agg')
+
 
 
 class ResultsManager:
@@ -19,11 +18,10 @@ class ResultsManager:
         self.detailed_results = []
 
     def _create_timestamped_results_dir(self) -> Path:
-        """Create a timestamped directory for the current evaluation run."""
 
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         results_dir = self.base_dir / \
-            f"{timestamp}_{'individual_' if self.single_model_mode else ''}evaluation_run"
+            f"{timestamp}_{'individual' if self.single_model_mode else 'multiple'}_evaluation_run"
         results_dir.mkdir(parents=True, exist_ok=True)
         return results_dir
 
@@ -55,10 +53,6 @@ class ResultsManager:
 
         # Write individual result file
         self._write_individual_result(result)
-
-        # Update summary file
-        if not self.single_model_mode:
-            self._write_summary()
 
     def _write_individual_result(self, result: EvaluationResult) -> None:
 
