@@ -7,7 +7,6 @@ from typing import Dict, Optional
 import os
 
 
-
 class ResultsManager:
 
     def __init__(self, base_results_dir: Path, single_model_mode: bool):

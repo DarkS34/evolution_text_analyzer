@@ -1,8 +1,3 @@
-"""
-Diagnosis validation module for the medical diagnostic analysis system.
-This module provides functions to validate and compare extracted diagnoses with reference
-diagnoses, applying various similarity and normalization techniques.
-"""
 import unicodedata
 import re
 from rapidfuzz import fuzz
@@ -48,22 +43,6 @@ SIMILARITY_THRESHOLD: float = 70.0
 
 
 def normalize_name(name: str) -> str:
-    """
-    Normalize a diagnosis name to facilitate comparison.
-
-    This function performs several normalization steps:
-    1. Expands known abbreviations using the extendedDiagMap
-    2. Removes accents and diacritical marks
-    3. Converts text to lowercase
-    4. Removes punctuation and special characters
-    5. Removes extra whitespace
-
-    Args:
-        name: The diagnosis name to normalize
-
-    Returns:
-        Normalized diagnosis name (lowercase, without accents, expanded if abbreviated)
-    """
     if name is None:
         return ""
     
@@ -86,18 +65,6 @@ def normalize_name(name: str) -> str:
 
 
 def tokenize_diagnosis(diagnosis: str) -> list[str]:
-    """
-    Split a diagnosis into significant tokens, removing common words.
-
-    This function breaks a diagnosis into individual words and removes common
-    words that don't contribute significantly to the diagnosis meaning.
-
-    Args:
-        diagnosis: Normalized diagnosis text
-
-    Returns:
-        List of significant tokens from the diagnosis
-    """
     tokens = diagnosis.split()
 
     # Remove exclusion terms
@@ -105,37 +72,12 @@ def tokenize_diagnosis(diagnosis: str) -> list[str]:
 
 
 def get_key_terms(diagnosis: str) -> list[str]:
-    """
-    Extract key terms from a diagnosis.
-
-    This function normalizes a diagnosis and extracts significant tokens
-    that represent the key medical concepts.
-
-    Args:
-        diagnosis: Original diagnosis text
-
-    Returns:
-        List of key terms from the diagnosis
-    """
     normalized = normalize_name(diagnosis)
 
     return tokenize_diagnosis(normalized)
 
 
 def calculate_similarity_scores(processed: str, correct: str) -> tuple[float, float, float]:
-    """
-    Calculate various similarity scores between two diagnosis strings.
-
-    This function uses different fuzzy matching algorithms to assess how
-    similar two diagnosis strings are to each other.
-
-    Args:
-        processed: The processed (extracted) diagnosis text
-        correct: The correct reference diagnosis text
-
-    Returns:
-        Tuple of (ratio, partial_ratio, token_sort_ratio) similarity scores
-    """
     ratio = fuzz.ratio(processed, correct)
     partial_ratio = fuzz.partial_ratio(processed, correct)
     token_sort_ratio = fuzz.token_sort_ratio(processed, correct)
@@ -144,23 +86,6 @@ def calculate_similarity_scores(processed: str, correct: str) -> tuple[float, fl
 
 
 def validate_result(processed_diag: str, correct_diag: str) -> bool:
-    """
-    Validate if a processed diagnosis matches the correct diagnosis.
-
-    This function applies multiple validation strategies to determine if
-    an extracted diagnosis is considered equivalent to the reference diagnosis:
-    1. Direct comparison after normalization
-    2. Checking if all key terms in the correct diagnosis are present in the processed one
-    3. Using fuzzy string matching with various similarity metrics
-    4. Special handling for short and long diagnoses
-
-    Args:
-        processed_diag: The processed (extracted) diagnosis to validate
-        correct_diag: The correct reference diagnosis to compare against
-
-    Returns:
-        Boolean indicating whether the processed diagnosis is valid
-    """
     # Handle null cases
     if processed_diag is None or correct_diag is None:
         return False

@@ -1,22 +1,8 @@
-"""
-Data models for the medical diagnostic analysis system.
-
-This module defines the Pydantic models used throughout the system to ensure
-data consistency and provide type validation. These models represent various
-aspects of the diagnostic process including results, evaluation metrics,
-and model information.
-"""
 from typing import Dict, Optional
 from pydantic import BaseModel, Field
 
 
 class DiagnosticResult(BaseModel):
-    """
-    Result of a diagnostic analysis for a single medical text.
-
-    Contains the extracted principal diagnosis and ICD code,
-    along with any error information.
-    """
     icd_code: Optional[str] = Field(
         description="The extracted ICD code for the diagnosis"
     )
@@ -32,12 +18,6 @@ class DiagnosticResult(BaseModel):
 
 
 class EvaluationOutput(BaseModel):
-    """
-    Output of the evaluation process for a single diagnostic result.
-
-    Contains the validation result comparing the extracted diagnosis
-    with the correct reference diagnosis.
-    """
     valid: bool = Field(
         description="Whether the processed output matches the correct diagnosis"
     )
@@ -52,12 +32,6 @@ class EvaluationOutput(BaseModel):
 
 
 class PerformanceMetrics(BaseModel):
-    """
-    Performance metrics for a model evaluation.
-
-    Contains various metrics to assess model performance including
-    accuracy, error rates, and processing time.
-    """
     accuracy: float = Field(
         description="Percentage of correctly identified diagnoses"
     )
@@ -91,12 +65,6 @@ class PerformanceMetrics(BaseModel):
 
 
 class ModelInfo(BaseModel):
-    """
-    Information about a language model.
-
-    Contains details about a model including its name, installation status,
-    and technical specifications.
-    """
     model_name: str = Field(
         description="Name of the model"
     )
@@ -115,12 +83,6 @@ class ModelInfo(BaseModel):
 
 
 class EvaluationResult(BaseModel):
-    """
-    Complete result of a model evaluation.
-
-    Contains all information about a model evaluation including
-    model details, performance metrics, and individual text results.
-    """
     model_info: ModelInfo = Field(
         description="Information about the evaluated model"
     )
