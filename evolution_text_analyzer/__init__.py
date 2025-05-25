@@ -1,3 +1,4 @@
+
 """
 Medical Diagnostic Analysis System
 ==================================
@@ -16,12 +17,6 @@ Main modules:
 - tester: Evaluates model performance
 - auxiliary_functions: General utility functions
 """
-
-__version__ = "0.1.0"
-
-# Import only the functions used in main.py
-from .analyzer import evolution_text_analysis
-from .tester import evaluate_analysis
 from .auxiliary_functions import (
     check_ollama_connection,
     get_analyzer_configuration,
@@ -30,6 +25,16 @@ from .auxiliary_functions import (
     get_evolution_texts,
     write_results
 )
+from .tester import evaluate_analysis
+from .analyzer import evolution_text_analysis
+import os
+
+__version__ = "0.1.0"
+
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+# Import only the functions used in main.py
 
 # Define what should be exposed with "from package import *"
 __all__ = [

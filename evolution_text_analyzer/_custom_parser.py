@@ -9,7 +9,7 @@ from langchain_ollama import OllamaLLM
 from .auxiliary_functions import get_exclusion_terms
 
 
-class CustomParser(BaseOutputParser):
+class CustomOutputParser(BaseOutputParser):
     def __init__(self, llm: OllamaLLM, normalization_mode: bool, prompt: str, **kwargs):
         super().__init__()
         self._llm = llm
@@ -124,23 +124,31 @@ class CustomParser(BaseOutputParser):
             raise Exception(
                 f"Error al invocar el modelo para normalizar el diagnóstico: {e}")
 
+    
+# Utility function to clean any text that might contain thinking tags
+    def _clean_reasoning_output(text: str) -> str:
+        """
+        Utility function to remove thinking tags from any text.
+        Useful for manual cleaning or debugging.
+        """
+        if re.search(r'<think>.*?</think>', text, flags=re.DOTALL | re.IGNORECASE):
+            cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)
+            return cleaned_text.strip()
+        return text
+
     def parse(self, result: list[Generation], *, partial: bool = False) -> dict:
         try:
-            # Extraer texto del resultado según su tipo
             if isinstance(result, list) and result and all(isinstance(x, Generation) for x in result):
-                # Si es una lista de Generation
                 generated_diagnostic = result[0].text.strip()
             elif isinstance(result, Generation):
-                # Si es un solo Generation
                 generated_diagnostic = result.text.strip()
             elif isinstance(result, str):
-                # Si ya es un string
                 generated_diagnostic = result.strip()
             else:
-                # Cualquier otro tipo
                 generated_diagnostic = str(result).strip()
-
-            # Aplicar el método adecuado según el modo
+            generated_diagnostic = self._clean_reasoning_output(generated_diagnostic)
+            
             if self._normalization_mode:
                 return self._check_match(generated_diagnostic)
             else:

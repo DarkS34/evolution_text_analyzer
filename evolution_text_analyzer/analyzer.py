@@ -1,17 +1,11 @@
-import os
-
 from langchain.prompts import PromptTemplate
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_ollama.llms import OllamaLLM
 
 from ._custom_parser import CustomParser
-from .auxiliary_functions import print_execution_progression
+from .auxiliary_functions import CustomStringOutputParser, print_execution_progression
 from .data_models import SummarizerConfig
-
-os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 class EvolutionTextSummarizer:
@@ -21,7 +15,6 @@ class EvolutionTextSummarizer:
         summary_prompt: str,
         context_window: int,
     ):
-
         self.model = model
         self.context_window = context_window
         self.config = SummarizerConfig()
@@ -43,7 +36,7 @@ class EvolutionTextSummarizer:
 
         # Configure the summarization chain
         self.summary_chain = PromptTemplate.from_template(
-            summary_prompt) | self.model | StrOutputParser()
+            summary_prompt) | self.model | CustomStringOutputParser()
 
     def needs_summarization(self, text: str) -> bool:
         try:

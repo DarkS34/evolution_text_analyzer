@@ -3,7 +3,6 @@ from .data_models import EvaluationResult
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
 import os
 
 
@@ -72,7 +71,7 @@ class ResultsManager:
             json.dump(result.model_dump(exclude_none=True),
                       f, indent=2, ensure_ascii=False)
 
-    def _get_best_model(self) -> Optional[Dict]:
+    def _get_best_model(self) -> dict | None:
         if not self.summary_data:
             return None
 

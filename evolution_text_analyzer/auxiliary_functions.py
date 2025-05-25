@@ -2,12 +2,14 @@ import json
 import os
 from argparse import ArgumentParser
 from pathlib import Path
+import re
 import subprocess
 
 import ollama
 import pandas as pd
 import requests
 from pydantic import BaseModel, ByteSize
+from langchain_core.output_parsers import StrOutputParser
 
 from .data_models import ModelInfo
 
@@ -377,6 +379,24 @@ def choose_model(model_names: list[str], installed_only: bool = False) -> list[M
         print(
             f"{color_text('ERROR', 'red')} Invalid selection. Please try again.")
 
+class CustomStringOutputParser(StrOutputParser):
+    """Custom parser that removes thinking tags from reasoning model outputs."""
+    
+    def parse(self, text: str) -> str:
+        """Remove <think>...</think> tags and return clean output."""
+        # Check if the text contains thinking tags and remove them
+        if self._has_thinking_tags(text):
+            cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            # Clean up extra whitespace that might be left
+            cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)  # Multiple newlines to double
+            cleaned_text = cleaned_text.strip()
+            return cleaned_text
+        
+        return text
+    
+    def _has_thinking_tags(self, text: str) -> bool:
+        """Check if text contains thinking tags."""
+        return bool(re.search(r'<think>.*?</think>', text, flags=re.DOTALL | re.IGNORECASE))
 
 def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> None:
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)

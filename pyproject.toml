@@ -11,6 +11,4 @@ dependencies = [
     "pandas>=2.2.3",
     "torch>=2.6.0",
     "rapidfuzz>=3.13.0",
-    "matplotlib>=3.10.1",
-    "transformers>=4.51.3",
 ]
