@@ -3,7 +3,7 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_ollama.llms import OllamaLLM
 
-from ._custom_parser import CustomParser
+from ._custom_output_parser import CustomOutputParser
 from .auxiliary_functions import CustomStringOutputParser, print_execution_progression
 from .data_models import SummarizerConfig
 
@@ -104,7 +104,7 @@ def evolution_text_analysis(
     diagnosis_prompt = PromptTemplate.from_template(
         prompts["gen_diagnostic_prompt"])
 
-    parser = CustomParser(model, norm_mode, prompts["gen_icd_code_prompt"])
+    parser = CustomOutputParser(model, norm_mode, prompts["gen_icd_code_prompt"])
 
     # Diagnosis chain
     diagnosis_chain = diagnosis_prompt | model | parser
