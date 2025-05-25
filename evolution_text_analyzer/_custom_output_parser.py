@@ -124,9 +124,7 @@ class CustomOutputParser(BaseOutputParser):
             raise Exception(
                 f"Error al invocar el modelo para normalizar el diagnóstico: {e}")
 
-    
-# Utility function to clean any text that might contain thinking tags
-    def _clean_reasoning_output(text: str) -> str:
+    def _clean_reasoning_output(self, text: str) -> str:
         """
         Utility function to remove thinking tags from any text.
         Useful for manual cleaning or debugging.
