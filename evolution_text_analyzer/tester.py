@@ -3,13 +3,11 @@ Testing module for medical diagnostic analysis.
 Evaluates model performance on medical text diagnosis.
 """
 
-from argparse import Namespace
 import time
 from pathlib import Path
 
-from ._validator import validate_result
-from .analyzer import evolution_text_analysis
-from .auxiliary_functions import choose_model, get_context_window_length, get_listed_models_info, model_installed, print_evaluated_results
+from ._validator import Validator
+from .analyzer import Analyzer
 from .data_models import (
     DiagnosticResult,
     EvaluationOutput,
@@ -18,139 +16,155 @@ from .data_models import (
     PerformanceMetrics,
 )
 from .results_manager import ResultsManager
+from .utils import (
+    choose_model,
+    get_listed_models_info,
+    model_installed,
+    print_evaluated_results,
+)
 
 
-def _process_text(processed: dict, expected: str) -> EvaluationOutput:
-    try:
-        if not processed.get("processing_error"):
-            valid = validate_result(
-                processed.get("principal_diagnostic"), expected)
-        else:
+class AnalyzerTester():
+    def __init__(self, models_names: list[str],
+                 prompts: dict,
+                 evolution_texts: list[dict],
+                 testing_results_dir: Path,
+                 args,
+                 date_format: str = "%H:%M:%S %d-%m-%Y"
+                 ):
+        self.models = models_names
+        self.prompts = prompts
+        self.evolution_texts = evolution_texts
+        self.testing_results_dir = testing_results_dir
+        self.args = args
+        self.date_format = date_format
+        self.validator = Validator()
+        self.results_manager = ResultsManager(
+            testing_results_dir, args.test_mode == 2)
+
+    def _validate_result(self, generated_diagnostic: dict, correct_diagnostic: str) -> EvaluationOutput:
+        try:
+            if not generated_diagnostic.get("processing_error"):
+                valid = self.validator.validate(generated_diagnostic.get(
+                    "principal_diagnostic"), correct_diagnostic)
+            else:
+                valid = False
+            result = DiagnosticResult(
+                icd_code=generated_diagnostic.get("icd_code"),
+                principal_diagnostic=generated_diagnostic.get(
+                    "principal_diagnostic"),
+                processing_error=generated_diagnostic.get("processing_error"),
+            )
+        except Exception as e:
             valid = False
-        result = DiagnosticResult(
-            icd_code=processed.get("icd_code"),
-            principal_diagnostic=processed.get("principal_diagnostic"),
-            processing_error=processed.get("processing_error"),
+            result = DiagnosticResult(
+                icd_code=None,
+                principal_diagnostic=None,
+                validation_error=str(e),
+            )
+
+        return EvaluationOutput(
+            valid=valid,
+            processed_output=result,
+            summarized=generated_diagnostic.get("summarized"),
+            correct_diagnostic=correct_diagnostic
         )
-    except Exception as e:
-        valid = False
-        result = DiagnosticResult(
-            icd_code=None,
-            principal_diagnostic=None,
-            validation_error=str(e),
+
+    def _calculate_metrics(self,
+                           evaluated: dict[str, EvaluationOutput],
+                           total_texts: int,
+                           num_batches: int,
+                           start: float,
+                           end: float,
+                           normalized: bool,
+                           ) -> PerformanceMetrics:
+
+        valid = sum(1 for e in evaluated.values() if e.valid)
+        errors = sum(
+            1 for e in evaluated.values()
+            if not e.valid and (e.processed_output.validation_error or e.processed_output.processing_error)
+        )
+        incorrect = total_texts - valid - errors
+
+        return PerformanceMetrics(
+            accuracy=round((valid / total_texts) * 100, 2),
+            incorrect_outputs=round((incorrect / total_texts) * 100, 2),
+            errors=round((errors / total_texts) * 100, 2),
+            hits=valid,
+            total_texts=total_texts,
+            duration=round(end - start, 2),
+            start_time=time.strftime(self.date_format, time.localtime(start)),
+            end_time=time.strftime(self.date_format, time.localtime(end)),
+            num_batches=num_batches,
+            normalized=normalized,
         )
 
-    return EvaluationOutput(
-        valid=valid,
-        processed_output=result,
-        summarized=processed.get("summarized"),
-        correct_diagnostic=expected
-    )
+    def _evaluate_model(self, analyzer: Analyzer, model_info: ModelInfo) -> EvaluationResult:
 
+        start = time.time()
+        generated_diagnostics = analyzer.analyze(self.evolution_texts)
+        end = time.time()
+        
+        evaluated = {
+            key: self._validate_result(generated_diagnostic, self.evolution_texts[i]["principal_diagnostic"])
+            for i, (key, generated_diagnostic) in enumerate(generated_diagnostics.items())
+        }
 
-def _calculate_metrics(
-    evaluated: dict[str, EvaluationOutput],
-    total_texts: int,
-    num_batches: int,
-    start: float,
-    end: float,
-    date_format: str,
-    normalized: bool,
-) -> PerformanceMetrics:
-    valid = sum(1 for e in evaluated.values() if e.valid)
-    errors = sum(
-        1 for e in evaluated.values()
-        if not e.valid and (e.processed_output.validation_error or e.processed_output.processing_error)
-    )
-    incorrect = total_texts - valid - errors
+        metrics = self._calculate_metrics(
+            evaluated,
+            total_texts=self.args.num_texts,
+            num_batches=self.args.process_batch,
+            start=start,
+            end=end,
+            normalized=self.args.normalization_mode,
+        )
 
-    return PerformanceMetrics(
-        accuracy=round((valid / total_texts) * 100, 2),
-        incorrect_outputs=round((incorrect / total_texts) * 100, 2),
-        errors=round((errors / total_texts) * 100, 2),
-        hits=valid,
-        total_texts=total_texts,
-        duration=round(end - start, 2),
-        start_time=time.strftime(date_format, time.localtime(start)),
-        end_time=time.strftime(date_format, time.localtime(end)),
-        num_batches=num_batches,
-        normalized=normalized,
-    )
+        return EvaluationResult(
+            model_info=model_info,
+            performance=metrics,
+            evaluated_texts=evaluated
+        )
 
+    def evaluate_analysis(self):
+        if self.args.test_mode == 1 and len(self.models) > 1:
+            models_info = get_listed_models_info(
+                self.models, self.args.only_installed_models_mode)
 
-def evaluate_model(
-    model_info: ModelInfo,
-    prompts: dict,
-    evolution_texts: list[dict],
-    args: Namespace,
-    date_format: str = "%H:%M:%S %d-%m-%Y"
-) -> EvaluationResult:
-    ctx_len = get_context_window_length(
-        model_info.model_name, args.context_window_tokens)
+            for model_info in models_info:
+                if model_installed(model_info.model_name):
+                    analyzer = Analyzer(model_info.model_name,
+                                        self.prompts,
+                                        self.args.selected_context_window,
+                                        self.args.process_batch,
+                                        self.args.num_texts,
+                                        self.args.normalization_mode,
+                                        self.args.selected_context_window,
+                                        True)
 
-    start = time.time()
-    processed = evolution_text_analysis(
-        model_info.model_name,
-        prompts,
-        ctx_len,
-        evolution_texts,
-        args.num_batches,
-        args.num_texts,
-        args.normalization_mode,
-        True
-    )
-    end = time.time()
+                    evaluation_result = self._evaluate_model(
+                        analyzer, model_info)
 
-    evaluated = {
-        key: _process_text(result, evolution_texts[i]["principal_diagnostic"])
-        for i, (key, result) in enumerate(processed.items())
-    }
+                    self.results_manager.add_result(evaluation_result)
 
-    metrics = _calculate_metrics(
-        evaluated,
-        total_texts=args.num_texts,
-        num_batches=args.num_batches,
-        start=start,
-        end=end,
-        date_format=date_format,
-        normalized=args.normalization_mode,
-    )
+            self.results_manager.generate_comprehensive_report()
 
-    return EvaluationResult(
-        model_info=model_info,
-        performance=metrics,
-        evaluated_texts=evaluated
-    )
+        # Single model evaluation
+        elif self.args.test_mode == 2 or len(self.models) == 1:
 
+            model_info = choose_model(
+                self.models, self.args.only_installed_models_mode)
 
-def evaluate_analysis(
-    models: list[str],
-    prompts: dict,
-    evolution_texts: list[dict],
-    testing_results_dir: Path,
-    args: Namespace
-):
-    # Initialize the results manager
-    results_manager = ResultsManager(testing_results_dir, args.eval_mode == 2)
+            analyzer = Analyzer(model_info.model_name,
+                                self.prompts,
+                                self.args.process_batch,
+                                self.args.num_texts,
+                                self.args.normalization_mode,
+                                self.args.selected_context_window,
+                                True)
 
-    # Multiple models evaluation
-    if args.eval_mode == 1 and len(models) > 1:
-        models = get_listed_models_info(
-            models, args.only_installed_models_mode)
-        for i, model_info in enumerate(models):
-            if model_installed(model_info.model_name):
-                evaluation_result = evaluate_model(
-                    model_info, prompts, evolution_texts, args)
+            evaluation_result = self._evaluate_model(analyzer, model_info)
 
-                results_manager.add_result(evaluation_result)
-        results_manager.generate_comprehensive_report()
+            self.results_manager.add_result(evaluation_result)
 
-    # Single model evaluation
-    elif args.eval_mode == 2 or len(models) == 1:
-        model_info = choose_model(models, args.only_installed_models_mode)
-        evaluation_result = evaluate_model(
-            model_info, prompts, evolution_texts, args)
-
-        print_evaluated_results(
-            model_info, evaluation_result, args.verbose_mode)
-        results_manager.add_result(evaluation_result)
+            print_evaluated_results(
+                model_info, evaluation_result, self.args.verbose_mode)

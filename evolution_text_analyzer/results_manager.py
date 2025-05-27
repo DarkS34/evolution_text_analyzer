@@ -1,4 +1,4 @@
-from evolution_text_analyzer.auxiliary_functions import color_text
+from evolution_text_analyzer.utils import color_text
 from .data_models import EvaluationResult
 import json
 from datetime import datetime
@@ -7,7 +7,6 @@ import os
 
 
 class ResultsManager:
-
     def __init__(self, base_results_dir: Path, single_model_mode: bool):
         self.base_dir = base_results_dir
         self.single_model_mode = single_model_mode

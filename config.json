@@ -4,20 +4,15 @@
     "llama3.1:8b-instruct-q8_0",
     "llama3.2:3b-instruct-q8_0",
     "llama3.3:70b-instruct-q4_K_M",
+    "phi4:14b-q8_0",
+    "phi4-reasoning:14b-plus-q8_0",
     "gemma3:4b-it-q8_0",
     "gemma3:12b-it-q8_0",
     "gemma3:27b-it-q8_0",
-    "phi4:14b-q8_0",
-    "phi4-reasoning:14b-plus-q8_0",
     "mixtral:8x7b-instruct-v0.1-q4_0",
     "mistral:7b-instruct-v0.3-q8_0",
-    "deepseek-r1:8b-llama-distill-q8_0",
-    "deepseek-r1:32b-qwen-distill-q4_K_M",
-    "deepseek-r1:70b-llama-distill-q4_K_M",
     "medllama2:7b-q8_0",
-    "Elixpo/LlamaMedicine",
-    "meditron:7b-q8_0",
-    "meditron:70b-q4_K_S"
+    "Elixpo/LlamaMedicine"
   ],
   "prompts": {
     "gen_summary_prompt": "Actúa como asistente médico. Resume este fragmento de texto clínico reduciendo su extensión en un 70%:\n\n1. Conserva información diagnóstica clave (signos, síntomas, valores de laboratorio)\n2. Mantén la cronología de eventos médicos\n3. Señala referencias a información en otras partes del documento\n4. Incluye medicamentos con dosis exactas\n5. No hagas suposiciones sobre datos ausentes\n6. Usa terminología médica precisa\n7. Marca datos incompletos con \"[información parcial]\"\n\nFragmento clínico:\n{chunk}\n\nResumen:",

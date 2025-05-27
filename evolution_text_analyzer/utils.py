@@ -1,17 +1,116 @@
 import json
 import os
-from argparse import ArgumentParser
-from pathlib import Path
 import re
 import subprocess
+from argparse import ArgumentParser
+from pathlib import Path
 
 import ollama
 import pandas as pd
 import requests
-from pydantic import BaseModel, ByteSize
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from pydantic import BaseModel, ByteSize
 
-from .data_models import ModelInfo
+from .data_models import ModelInfo, SummarizerConfig
+
+
+class CustomStringOutputParser(StrOutputParser):
+    """Custom parser that removes thinking tags from reasoning model outputs."""
+
+    def parse(self, text: str) -> str:
+        """Remove <think>...</think> tags and return clean output."""
+        # Check if the text contains thinking tags and remove them
+        if self._has_thinking_tags(text):
+            cleaned_text = re.sub(r'<think>.*?</think>',
+                                  '', text, flags=re.DOTALL | re.IGNORECASE)
+            # Clean up extra whitespace that might be left
+            # Multiple newlines to double
+            cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)
+            cleaned_text = cleaned_text.strip()
+            return cleaned_text
+
+        return text
+
+    def _has_thinking_tags(self, text: str) -> bool:
+        """Check if text contains thinking tags."""
+        return bool(re.search(r'<think>.*?</think>', text, flags=re.DOTALL | re.IGNORECASE))
+
+
+class EvolutionTextSummarizer:
+    def __init__(
+        self,
+        model: any,
+        summary_prompt: str,
+        context_window: int,
+    ):
+        self.model = model
+        self.context_window = context_window
+        self.config = SummarizerConfig()
+
+        # Determine the token counting function
+        self.token_counter = getattr(model, 'get_num_tokens', None)
+        if not self.token_counter:
+            # Fallback to simple estimation if no token counter is available
+            self.token_counter = lambda text: int(
+                len(text.split()) * self.config.tokens_per_word)
+
+        # Configure the text splitter
+        self.text_splitter = CharacterTextSplitter(
+            chunk_size=self.config.chunk_size,
+            chunk_overlap=self.config.chunk_overlap,
+            separator=self.config.separator,
+            length_function=self.token_counter,
+        )
+
+        # Configure the summarization chain
+        self.summary_chain = PromptTemplate.from_template(
+            summary_prompt) | self.model | CustomStringOutputParser()
+
+    def needs_summarization(self, text: str) -> bool:
+        try:
+            token_count = self.token_counter(text)
+            return token_count > (self.context_window - self.config.safety_margin)
+        except Exception as _:
+            words = len(text.split())
+            estimated_tokens = int(words * self.config.tokens_per_word)
+            return estimated_tokens > (self.context_window - self.config.safety_margin)
+
+    def summarize_text(self, text: str, max_recursion: int = 3, current_depth: int = 0) -> str:
+        if current_depth >= max_recursion:
+            return text
+
+        if not self.needs_summarization(text):
+            return text
+
+        try:
+            chunks = self.text_splitter.split_text(text)
+
+            summaries: list[str] = []
+            for i, chunk in enumerate(chunks, 1):
+                try:
+                    summary = self.summary_chain.invoke({"chunk": chunk})
+                    summaries.append(summary)
+                except Exception as _:
+                    # Include a simple fallback if summarization failed
+                    summaries.append(chunk)
+
+            combined_summary = " ".join(summaries)
+
+            # Check if more summarization is needed
+            if self.needs_summarization(combined_summary):
+                return self.summarize_text(
+                    combined_summary,
+                    max_recursion=max_recursion,
+                    current_depth=current_depth + 1
+                )
+
+            return combined_summary
+
+        except Exception as e:
+            raise ValueError(f"Error summarizing text: {str(e)}")
+
 
 def color_text(text, color="green"):
     colors = {
@@ -52,7 +151,7 @@ def check_ollama_connection(url: str = "http://localhost:11434") -> None:
         exit(1)
 
 
-def get_context_window_length(model_name: str, desired_context_window:int) -> int:
+def get_context_window_length(model_name: str, desired_context_window: int) -> int:
     try:
         result = subprocess.run(
             ["ollama", "show", model_name],
@@ -143,14 +242,14 @@ def get_args():
         type=int,
         choices=[1, 2],
         default=1,
-        dest="eval_mode",
+        dest="test_mode",
         help="Operation mode: 1 for all models, 2 for model selection"
     )
     parser.add_argument(
         "-b", "--batches",
         type=int,
         default=1,
-        dest="num_batches",
+        dest="process_batch",
         help="Number of batches for parallel processing"
     )
     parser.add_argument(
@@ -164,7 +263,7 @@ def get_args():
         "-W", "--context-window",
         type=int,
         default=3072,
-        dest="context_window_tokens",
+        dest="selected_context_window",
         help="Normalize results using SNOMED dataset"
     )
     parser.add_argument(
@@ -191,7 +290,6 @@ def get_args():
         dest="normalization_mode",
         help="Normalize results using SNOMED dataset"
     )
-
 
     return parser.parse_args()
 
@@ -361,7 +459,7 @@ def _display_models_table(models: list[ModelInfo]) -> None:
         )
 
 
-def choose_model(model_names: list[str], installed_only: bool = False) -> list[ModelInfo] | None:
+def choose_model(model_names: list[str], installed_only: bool = False) -> ModelInfo:
     listed = get_listed_models_info(model_names, installed_only)
     if not listed:
         print(f"{color_text('ERROR', 'red')} No models available to choose from.")
@@ -379,24 +477,6 @@ def choose_model(model_names: list[str], installed_only: bool = False) -> list[M
         print(
             f"{color_text('ERROR', 'red')} Invalid selection. Please try again.")
 
-class CustomStringOutputParser(StrOutputParser):
-    """Custom parser that removes thinking tags from reasoning model outputs."""
-    
-    def parse(self, text: str) -> str:
-        """Remove <think>...</think> tags and return clean output."""
-        # Check if the text contains thinking tags and remove them
-        if self._has_thinking_tags(text):
-            cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
-            # Clean up extra whitespace that might be left
-            cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)  # Multiple newlines to double
-            cleaned_text = cleaned_text.strip()
-            return cleaned_text
-        
-        return text
-    
-    def _has_thinking_tags(self, text: str) -> bool:
-        """Check if text contains thinking tags."""
-        return bool(re.search(r'<think>.*?</think>', text, flags=re.DOTALL | re.IGNORECASE))
 
 def print_evaluated_results(model: dict, results: BaseModel, verbose: bool) -> None:
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
@@ -449,12 +529,12 @@ def print_execution_progression(
     model_name: str,
     processed_texts: int,
     total_texts: int,
-    test_mode:bool,
+    test_mode: bool,
 ) -> None:
     print(f"\r{' ' * os.get_terminal_size().columns}", end="", flush=True)
 
     activity_str = 'TESTING' if test_mode else 'PROCESSING'
-    
+
     print(
         f"\r{color_text(activity_str)} {model_name} - Evolution texts processed {processed_texts}/{total_texts}",
         end="",

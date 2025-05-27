@@ -6,7 +6,7 @@ from langchain_core.output_parsers import BaseOutputParser, StrOutputParser
 from langchain_core.outputs import Generation
 from langchain_ollama import OllamaLLM
 
-from .auxiliary_functions import get_exclusion_terms
+from .utils import get_exclusion_terms
 
 
 class CustomOutputParser(BaseOutputParser):
