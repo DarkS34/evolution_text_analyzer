@@ -2,199 +2,190 @@
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen)
 
-An advanced system for analyzing rheumatological medical evolution texts that extracts principal diagnoses and ICD codes using local language models with SNOMED-CT based normalization capabilities.
+A sophisticated tool for extracting and normalizing rheumatologic diagnoses from Spanish clinical evolution texts using local LLMs and SNOMED-CT mappings.
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Command Line Arguments](#command-line-arguments)
-  - [Execution Examples](#execution-examples)
-- [Architecture](#architecture)
-- [Processing Flow](#processing-flow)
-- [Directory Structure](#directory-structure)
-- [Data Format](#data-format)
-- [Results](#results)
+* [Overview](#overview)
+* [Features](#features)
+* [Requirements](#requirements)
+* [Installation](#installation)
+* [Usage](#usage)
+
+  * [Command Line Arguments](#command-line-arguments)
+  * [Execution Examples](#execution-examples)
+* [Architecture](#architecture)
+* [Processing Flow](#processing-flow)
+* [Directory Structure](#directory-structure)
+* [Data Format](#data-format)
+* [Results](#results)
 
 ## Overview
 
-The **Medical Evolution Text Analyzer** is a Python-based application designed to process medical evolution texts, extract principal rheumatological diagnoses and ICD codes (International Classification of Diseases), and validate these diagnoses against SNOMED-CT reference data. It uses language models through the Ollama framework to perform advanced semantic analysis of medical texts, with a special focus on rheumatological diseases.
+**Medical Evolution Text Analyzer** processes Spanish-language clinical evolution notes to extract principal rheumatologic diagnoses and corresponding ICD-10 codes. It leverages local language models via the Ollama API and integrates a SNOMED-CT-based normalization module to enhance diagnosis consistency.
 
 ## Features
 
-- **Automatic diagnosis extraction** from clinical notes using local LLMs via Ollama
-- **Diagnosis normalization** using SNOMED-CT dataset
-- **ICD code assignment** to extracted diagnoses
-- **Parallel processing** to optimize execution time
-- **Comprehensive model evaluation** with detailed performance metrics
-- **Text summarization** for long clinical notes to fit context windows
-- **Visual performance comparisons** between different models
-- **Support for Spanish medical texts** with specialized prompts
-- **Flexible and powerful command line interface**
-- **Multi-model evaluation** for comparing different LLMs
+* Summarizes long clinical notes to fit context windows
+* Extracts principal rheumatologic diagnoses using strict prompt engineering
+* Maps diagnoses to ICD-10 codes through direct or SNOMED-enhanced logic
+* Applies fuzzy and keyword-based validation of results
+* Evaluates multiple LLMs in parallel
+* Provides performance metrics and result visualizations
+* Command-line driven with multiple modes and settings
 
 ## Requirements
 
-- Python 3.10+
-- [Ollama](https://ollama.ai/) installed and running
-- Large Language Models (Llama, Gemma, Mixtral, etc.) available through Ollama
-- SNOMED-CT dataset for normalization
+* Python 3.10+
+* [Ollama](https://ollama.ai/) running locally
+* SNOMED-CT datasets (international + Spanish + mappings)
+* ICD-10 reference dataset
 
 ## Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/username/evolution-text-analysis.git
-   cd evolution-text-analysis
-   ```
+```bash
+git clone https://github.com/username/evolution-text-analysis.git
+cd evolution-text-analysis
+pip install .
+```
 
-2. Install dependencies:
-   ```bash
-   pip install .
-   ```
-   
-3. Make sure Ollama is installed:
-   ```bash
-   https://ollama.com/download
-   ```
+Ensure Ollama is running:
 
-4. Prepare the SNOMED-CT dataset (run once):
-   ```bash
-   python create_snomed_normalized_icd_dataset.py
-   ```
+```bash
+https://ollama.com/download
+```
+
+Build SNOMED normalization table:
+
+```bash
+python create_snomed_normalized_icd_dataset.py
+```
 
 ## Usage
 
-The main script is executed through the command line with various arguments to customize the analysis.
-
-### Command Line Arguments
-
-```
+```bash
 python main.py [options]
 ```
 
-| Argument | Description |
-|-----------|-------------|
-| `-f`, `--filename` | Filename for the evolution texts file (default: `evolution_texts.csv`) |
-| `-m`, `--mode` | Operation mode: `1` for all models, `2` for model selection (default: `1`) |
-| `-b`, `--batches` | Number of batches for parallel processing (default: `1`) |
-| `-n`, `--num-texts` | Number of texts to process (default: all) |
-| `-W`, `--context-window` | Size of context window in tokens (default: `3072`) |
-| `-t`, `--test` | Run in test mode to evaluate model performance |
-| `-i`, `--installed` | Only use models that are already installed |
-| `-v`, `--verbose` | Print detailed output during processing |
-| `-N`, `--normalize` | Normalize results using SNOMED dataset |
+### Command Line Arguments
+
+| Argument                 | Description                                         |
+| ------------------------ | --------------------------------------------------- |
+| `-f`, `--filename`       | File with evolution texts (`.csv` or `.json`)       |
+| `-m`, `--mode`           | Test mode: `1` (all models), `2` (manual selection) |
+| `-b`, `--batches`        | Number of texts per processing batch                |
+| `-n`, `--num-texts`      | Max number of texts to process                      |
+| `-W`, `--context-window` | Max token context window size                       |
+| `-t`, `--test`           | Enable test mode for evaluation                     |
+| `-i`, `--installed`      | Only use installed models                           |
+| `-v`, `--verbose`        | Print detailed processing info                      |
+| `-N`, `--normalize`      | Use SNOMED-CT for ICD normalization                 |
 
 ### Execution Examples
 
 ```bash
-# Run with the optimal model (from config) in standard mode
+# Analyze with default config (optimal model)
 python main.py
 
-# Run with all installed models in test mode with verbose output
+# Evaluate all installed models
 python main.py -tiv
 
-# Select a specific model in test mode and use normalization
+# Evaluate one selected model with SNOMED normalization
 python main.py -tN -m2
 
-# Process 50 texts with 4 parallel batches
+# Analyze 50 records in 4 parallel batches
 python main.py -n50 -b4
 ```
 
 ## Architecture
 
-The system is structured into several main modules:
-
-1. **analyzer.py**: Coordinates the medical text analysis process
-2. **_custom_parser.py**: Parses and normalizes extracted diagnoses using SNOMED-CT
-3. **_validator.py**: Validates diagnosis results using multiple strategies
-4. **auxiliary_functions.py**: Provides utility functions for data handling
-5. **tester.py**: Evaluates model accuracy and performance
-6. **data_models.py**: Contains Pydantic models for data structures
-7. **results_manager.py**: Manages storage and visualization of results
+* `main.py`: Entry point handling CLI and mode selection
+* `analyzer.py`: Analysis engine combining LLM, summarizer, and parser
+* `tester.py`: Model evaluation framework with metrics and reporting
+* `_custom_output_parser.py`: ICD mapping and SNOMED normalization logic
+* `_validator.py`: Rule-based and fuzzy diagnosis validation
+* `utils.py`: Argument parsing, file I/O, summarization helper
+* `data_models.py`: Pydantic schemas for all structured objects
 
 ## Processing Flow
 
-1. **Initialization**:
-   - Verification of connection with Ollama
-   - Loading configuration and evolution texts
-   - Processing command line arguments
+1. **Startup**
 
-2. **Text Analysis**:
-   - Text is processed in parallel batches
-   - Long texts are summarized to fit LLM context windows
-   - Principal diagnoses and ICD codes are extracted
+   * Verify Ollama is running
+   * Load config and evolution text data
 
-3. **Normalization** (optional):
-   - Diagnoses are normalized using SNOMED-CT dataset
-   - Exact and fuzzy matching is applied to standardize terminology
-   - Exclusion terms are filtered to improve matching quality
+2. **Text Preprocessing**
 
-4. **Validation**:
-   - Extracted diagnoses are compared with reference values
-   - Multiple validation strategies are applied (direct comparison, key terms, fuzzy matching)
-   - Metrics for accuracy, errors, and incorrect outputs are calculated
+   * Optionally summarize long records to fit context window
 
-5. **Results**:
-   - Results are stored in JSON files
-   - Detailed performance metrics are provided
-   - Visualizations are generated for model comparison
+3. **Diagnosis Extraction**
+
+   * LLM returns a single-line principal diagnosis
+
+4. **ICD Code Assignment**
+
+   * Model or SNOMED-CT-driven mapping logic
+
+5. **Normalization & Validation** (if enabled)
+
+   * Filter, expand, and fuzzy match diagnostics
+
+6. **Result Handling**
+
+   * Save per-record results as JSON
+   * Compute accuracy and error metrics
+   * Generate optional charts (for test mode)
 
 ## Directory Structure
 
 ```
 .
 ├── evolution_text_analyzer/
-│   ├── __init__.py                # Package initialization
-│   ├── analyzer.py                # Main analysis logic
-│   ├── _custom_parser.py          # Diagnosis parsing and normalization
-│   ├── _validator.py              # Results validation
-│   ├── auxiliary_functions.py     # Utility functions
-│   ├── data_models.py             # Pydantic data models
-│   ├── results_manager.py         # Results management and visualization
-│   └── tester.py                  # Model evaluation
-├── main.py                        # Main entry point
-├── config.json                    # System configuration with models and prompts
-├── create_snomed_normalized_icd_dataset.py  # SNOMED-CT dataset creator
-├── snomed_description_icd_normalized.csv    # Generated normalization dataset
-├── testing/                       # Testing resources
-│   └── evolution_texts.csv        # Test medical evolution texts
-├── results/                       # Analysis results
-├── testing_results/               # Model evaluation results
-└── pyproject.toml                 # Project dependencies
+│   ├── __init__.py
+│   ├── analyzer.py
+│   ├── tester.py
+│   ├── _custom_output_parser.py
+│   ├── _validator.py
+│   ├── utils.py
+│   ├── data_models.py
+├── main.py
+├── config.json
+├── create_snomed_normalized_icd_dataset.py
+├── snomed_description_icd_normalized.csv
+├── results/
+├── testing_results/
+└── pyproject.toml
 ```
 
 ## Data Format
 
-### Input Files
+### Input
 
-Medical evolution texts must be in CSV or JSON format with the following fields:
+CSV or JSON file with fields:
 
-- `id`: Unique record identifier
-- `evolution_text`: Medical evolution text (in Spanish)
-- `principal_diagnostic`: Correct principal diagnosis (for evaluation)
+* `id`: Unique record ID
+* `evolution_text`: Raw clinical text (Spanish)
+* `principal_diagnostic`: Ground-truth diagnosis (only for test mode)
 
-### Configuration
+### Config (JSON)
 
-The `config.json` file contains:
-
-- `models`: List of language models for diagnosis extraction
-- `optimal_model`: Index of the recommended model in the models list
-- `prompts`: Structured prompts for text summarization, diagnosis extraction, and ICD coding
+```json
+{
+  "optimal_model": 0,
+  "models": ["model1", "model2", ...],
+  "prompts": {
+    "gen_summary_prompt": "...",
+    "gen_diagnostic_prompt": "...",
+    "gen_icd_code_prompt": "..."
+  }
+}
+```
 
 ## Results
 
-Results are organized in directories based on the execution mode:
+* Saved in `results/` (normal mode) or `testing_results/` (test mode)
+* Includes JSON with model outputs, performance metrics, and optional charts
 
-- **Normal mode**: JSON files in the `results/` directory
-- **Test mode**: JSON files and visualizations in the `testing_results/` directory
+---
 
-The results format includes:
-
-- Model information (name, size, parameters, quantization level)
-- Performance metrics (accuracy, errors, processing time)
-- Details of each processed diagnosis
-- Performance comparison charts and visualizations
+For issues or contributions, please open a GitHub issue or PR.
