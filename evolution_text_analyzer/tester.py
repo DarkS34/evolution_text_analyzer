@@ -134,7 +134,6 @@ class AnalyzerTester():
                 if model_installed(model_info.model_name):
                     analyzer = Analyzer(model_info.model_name,
                                         self.prompts,
-                                        self.args.selected_context_window,
                                         self.args.process_batch,
                                         self.args.num_texts,
                                         self.args.normalization_mode,
