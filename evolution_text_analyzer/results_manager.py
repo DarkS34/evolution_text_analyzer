@@ -54,7 +54,7 @@ class ResultsManager:
     def _write_individual_result(self, result: EvaluationResult) -> None:
 
         model_name = result.model_info.model_name.replace(
-            ":", "-").replace("_", "-").replace(".", "-")
+            ":", "-").replace("_", "-").replace(".", "-").replace("/","")
         normalized_tag = "_N" if result.performance.normalized else ""
 
         # Change saving strategy if execute just for one model

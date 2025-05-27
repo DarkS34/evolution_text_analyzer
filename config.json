@@ -11,7 +11,7 @@
     "mixtral:8x7b-instruct-v0.1-q4_0",
     "mistral:7b-instruct-v0.3-q8_0",
     "medllama2:7b-q8_0",
-    "Elixpo/LlamaMedicine"
+    "Elixpo/LlamaMedicine:latest"
   ],
   "prompts": {
     "gen_summary_prompt": "Actúa como asistente médico. Resume este fragmento de texto clínico reduciendo su extensión en un 70%:\n\n1. Conserva información diagnóstica clave (signos, síntomas, valores de laboratorio)\n2. Mantén la cronología de eventos médicos\n3. Señala referencias a información en otras partes del documento\n4. Incluye medicamentos con dosis exactas\n5. No hagas suposiciones sobre datos ausentes\n6. Usa terminología médica precisa\n7. Marca datos incompletos con \"[información parcial]\"\n\nFragmento clínico:\n{chunk}\n\nResumen:",
