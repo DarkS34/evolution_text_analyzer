@@ -38,33 +38,41 @@ A sophisticated tool for extracting and normalizing rheumatologic diagnoses from
 
 * Python 3.10+
 * [Ollama](https://ollama.ai/) running locally
-* SNOMED-CT datasets (international + Spanish + mappings)
-* ICD-10 reference dataset
+* SNOMED-CT and ICD datasets (included in the repository)
 
 ## Installation
+
+1. Clone the repository:
 
 ```bash
 git clone https://github.com/username/evolution-text-analysis.git
 cd evolution-text-analysis
-pip install .
 ```
 
-Ensure Ollama is running:
+2. Install `uv` package manager (recommended). More information at [UV installing web](https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_2):
+
+```bash
+pip install uv
+```
+
+3. Install dependencies using `uv`:
+
+```bash
+uv sync
+```
+
+4. Ensure Ollama is running:
 
 ```bash
 https://ollama.com/download
 ```
 
-Build SNOMED normalization table:
-
-```bash
-python create_snomed_normalized_icd_dataset.py
-```
+> ⚠️ No need to manually prepare SNOMED-CT files — a normalized version is bundled and ready to use.
 
 ## Usage
 
 ```bash
-python main.py [options]
+uv run main.py [options]
 ```
 
 ### Command Line Arguments
@@ -85,16 +93,16 @@ python main.py [options]
 
 ```bash
 # Analyze with default config (optimal model)
-python main.py
+uv run main.py
 
 # Evaluate all installed models
-python main.py -tiv
+uv run main.py -tiv
 
 # Evaluate one selected model with SNOMED normalization
-python main.py -tN -m2
+uv run main.py -tN -m2
 
 # Analyze 50 records in 4 parallel batches
-python main.py -n50 -b4
+uv run main.py -n50 -b4
 ```
 
 ## Architecture
