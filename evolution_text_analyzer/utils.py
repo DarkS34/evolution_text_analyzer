@@ -242,7 +242,7 @@ def get_args():
         type=int,
         choices=[1, 2],
         default=1,
-        dest="test_mode",
+        dest="eval_mode",
         help="Operation mode: 1 for all models, 2 for model selection"
     )
     parser.add_argument(

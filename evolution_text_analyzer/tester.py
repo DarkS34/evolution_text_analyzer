@@ -40,7 +40,7 @@ class AnalyzerTester():
         self.date_format = date_format
         self.validator = Validator()
         self.results_manager = ResultsManager(
-            testing_results_dir, args.test_mode == 2)
+            testing_results_dir, args.eval_mode == 2)
 
     def _validate_result(self, generated_diagnostic: dict, correct_diagnostic: str) -> EvaluationOutput:
         try:
@@ -126,7 +126,7 @@ class AnalyzerTester():
         )
 
     def evaluate_analysis(self):
-        if self.args.test_mode == 1 and len(self.models) > 1:
+        if self.args.eval_mode == 1 and len(self.models) > 1:
             models_info = get_listed_models_info(
                 self.models, self.args.only_installed_models_mode)
 
@@ -149,7 +149,7 @@ class AnalyzerTester():
             self.results_manager.generate_comprehensive_report()
 
         # Single model evaluation
-        elif self.args.test_mode == 2 or len(self.models) == 1:
+        elif self.args.eval_mode == 2 or len(self.models) == 1:
 
             model_info = choose_model(
                 self.models, self.args.only_installed_models_mode)

@@ -5,7 +5,6 @@
     "llama3.2:3b-instruct-q8_0",
     "llama3.3:70b-instruct-q4_K_M",
     "phi4:14b-q8_0",
-    "phi4-reasoning:14b-plus-q8_0",
     "gemma3:4b-it-q8_0",
     "gemma3:12b-it-q8_0",
     "gemma3:27b-it-q8_0",
