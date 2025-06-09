@@ -5,3 +5,4 @@ __pycache__
 icd_vector_db
 *.egg-info/
 .vscode/
+snomed_description_icd_normalized.csv

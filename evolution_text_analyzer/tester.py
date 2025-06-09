@@ -1,8 +1,3 @@
-"""
-Testing module for medical diagnostic analysis.
-Evaluates model performance on medical text diagnosis.
-"""
-
 import time
 from pathlib import Path
 
