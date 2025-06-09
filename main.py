@@ -1,8 +1,3 @@
-"""
-Main entry point for the medical diagnostic analysis system.
-This module orchestrates the system's workflow, handling configuration loading,
-model selection, and execution of either test or analysis modes.
-"""
 from pathlib import Path
 
 from evolution_text_analyzer.analyzer import Analyzer
@@ -58,18 +53,17 @@ def run_analysis_mode(model_name: str, evolution_texts, prompts: dict, args) -> 
 if __name__ == "__main__":
     check_ollama_connection()
 
-    # Load configuration and setup paths
     base_path = Path(__file__).parent
     config_file = base_path / "config.json"
 
     config = get_analyzer_configuration(config_file)
     opt_model, models = config["optimal_model"], config["models"]
 
-    # Process command line arguments
     args = get_args()
     evolution_texts = get_evolution_texts(base_path / args.et_filename)
 
-    # Run in appropriate mode based on command line arguments
+    
+    
     if args.test_mode:
         run_test_analysis_mode(models, evolution_texts,
                                config["prompts"], args)

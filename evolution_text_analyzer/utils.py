@@ -223,7 +223,7 @@ def get_analyzer_configuration(path: Path):
         )
 
     return config
-
+    
 
 def get_args():
     parser = ArgumentParser(
@@ -264,7 +264,7 @@ def get_args():
         type=int,
         default=3072,
         dest="selected_context_window",
-        help="Normalize results using SNOMED dataset"
+        help="Change context window size"
     )
     parser.add_argument(
         "-t", "--test",
@@ -288,10 +288,17 @@ def get_args():
         "-N", "--normalize",
         action="store_true",
         dest="normalization_mode",
-        help="Normalize results using SNOMED dataset"
+        help="Normalize results using custom SNOMED dataset"
     )
+    
+    args = parser.parse_args()
+    
+    if args.normalization_mode and not os.path.isfile("snomed_description_icd_normalized.csv"):
+        print("The normalization database does NOT exist in the current directory.")
+        exit()
+    
 
-    return parser.parse_args()
+    return args
 
 
 def get_evolution_texts(path: Path):

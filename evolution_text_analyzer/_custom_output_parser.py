@@ -15,13 +15,11 @@ class CustomOutputParser(BaseOutputParser):
         self._llm = llm
         self._normalization_mode = normalization_mode
         self._prompt = prompt
-        self._snomed_df = pd.read_csv(
-            "./snomed_description_icd_normalized.csv", sep="\t")
+        if normalization_mode:
+            self._snomed_df = pd.read_csv(
+                "./snomed_description_icd_normalized.csv", sep="\t")
 
     def _check_match(self, diagnostic: str) -> dict[str, str] | None:
-        # Lista de términos a excluir en español e inglés
-        
-        # Función para eliminar términos de exclusión
         def remove_exclusion_terms(text: str) -> str:
             text_lower = text.lower().strip()
             words = text_lower.split()
@@ -34,27 +32,21 @@ class CustomOutputParser(BaseOutputParser):
         diagnostic_lower = diagnostic.lower().strip()
         diagnostic_filtered = remove_exclusion_terms(diagnostic_lower)
         
-        # Para almacenar los mejores resultados
         best_matches = []
         best_scores = []
         
-        # Revisar cada columna y guardar los mejores resultados
         for column in ['description_es_normalized', 'description_es', 'description_en']:
             if column in self._snomed_df.columns:
-                # Procesar columna del dataframe para eliminar términos de exclusión
                 processed_column = self._snomed_df[column].fillna("").str.lower().str.strip().apply(remove_exclusion_terms)
                 
-                # Coincidencia exacta con términos filtrados
                 exact_match = self._snomed_df[processed_column == diagnostic_filtered]
                 if not exact_match.empty:
-                    # Si hay una coincidencia exacta, retornar inmediatamente
                     match_row = exact_match.iloc[0]
                     return {
                         "icd_code": match_row.get('icd_code', ''),
                         "principal_diagnostic": match_row.get('description_es_normalized', diagnostic)
                     }
                 
-                # Si no hay coincidencia exacta, buscamos coincidencias parciales
                 partial_match_mask = processed_column.str.contains(diagnostic_filtered, regex=False, na=False)
                 partial_matches_df = self._snomed_df[partial_match_mask]
                 
@@ -79,18 +71,15 @@ class CustomOutputParser(BaseOutputParser):
                         })
                         best_scores.append(scores[best_idx])
         
-        # Si no encontramos ninguna coincidencia, retornamos valores por defecto
         if not best_matches:
             return {
                 "icd_code": "N/A",
                 "principal_diagnostic": diagnostic
             }
         
-        # Encontrar la mejor coincidencia basada en las puntuaciones
         best_idx = np.argmax(best_scores)
         best_match = best_matches[best_idx]
         
-        # Retornar solo los campos necesarios
         return {
             "icd_code": best_match["icd_code"],
             "principal_diagnostic": best_match["principal_diagnostic"]
@@ -125,10 +114,6 @@ class CustomOutputParser(BaseOutputParser):
                 f"Error al invocar el modelo para normalizar el diagnóstico: {e}")
 
     def _clean_reasoning_output(self, text: str) -> str:
-        """
-        Utility function to remove thinking tags from any text.
-        Useful for manual cleaning or debugging.
-        """
         if re.search(r'<think>.*?</think>', text, flags=re.DOTALL | re.IGNORECASE):
             cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
             cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)
