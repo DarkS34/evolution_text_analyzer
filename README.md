@@ -1,5 +1,12 @@
 # Medical Evolution Text Analyzer
 
+> ⚠️ **Important Notice for Normalization Mode**  
+> To enable SNOMED-CT normalization mode (`-N` flag), users must first register on the Spanish SNOMED-CT licensing platform:  
+> https://snomed-ct.sanidad.gob.es/snomed-ct/solicitudLicencia.do  
+>  
+> After obtaining access, download the required datasets as specified at the beginning of the script `create_snomed_normalized_icd_dataset.py`.  
+> These include the Spanish and International SNOMED-CT description files and the ExtendedMapSnapshot. The filenames and exact paths are provided within the script.
+
 ![Python](https://img.shields.io/badge/Python-3.10%2B-brightgreen)
 
 A sophisticated tool for extracting and normalizing rheumatologic diagnoses from Spanish clinical evolution texts using local LLMs and SNOMED-CT mappings.
@@ -19,6 +26,8 @@ A sophisticated tool for extracting and normalizing rheumatologic diagnoses from
 * [Directory Structure](#directory-structure)
 * [Data Format](#data-format)
 * [Results](#results)
+
+
 
 ## Overview
 
